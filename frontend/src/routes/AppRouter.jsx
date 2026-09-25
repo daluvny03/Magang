@@ -1,25 +1,71 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import HomePage from '../pages/user/HomePage'
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+} from 'react-router-dom'
+
+import ProtectedRoute from '../components/common/ProtectedRoute'
+import AdminLayout from '../layout/AdminLayout'
+import ForbiddenPage from '../pages/ForbiddenPage'
 import DashboardPage from '../pages/admin/DashboardPage'
-import HealthPage from '../pages/user/healthPage'
+import LoginPage from '../pages/auth/LoginPage'
 
 function AppRouter() {
-    return (
-        <BrowserRouter>
-            <Routes>
-                <Route path="/" element={<HomePage />} />
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Public */}
+        <Route path="/login" element={<LoginPage />} />
 
-                <Route
-                    path="/admin/dashboard"
-                    element={<DashboardPage />}
+        <Route
+          path="/403"
+          element={<ForbiddenPage />}
+        />
+
+        {/* Admin Protected */}
+        <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route
+              index
+              element={
+                <Navigate
+                  to="/admin/dashboard"
+                  replace
                 />
-                <Route
-                    path="/health"
-                    element={<HealthPage />}
-                />
-            </Routes>
-        </BrowserRouter>
-    )
+              }
+            />
+
+            <Route
+              path="dashboard"
+              element={<DashboardPage />}
+            />
+          </Route>
+        </Route>
+
+        {/* Default */}
+        <Route
+          path="/"
+          element={
+            <Navigate
+              to="/admin/dashboard"
+              replace
+            />
+          }
+        />
+
+        <Route
+          path="*"
+          element={
+            <Navigate
+              to="/admin/dashboard"
+              replace
+            />
+          }
+        />
+      </Routes>
+    </BrowserRouter>
+  )
 }
 
 export default AppRouter
