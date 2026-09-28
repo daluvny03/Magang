@@ -10,6 +10,8 @@ const mapCategory = (row) => {
     slug: row.slug,
     parentId: row.parent_id,
     level: row.level,
+    is_active: row.is_active,
+    description: row.description,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   });
@@ -61,6 +63,8 @@ export const findCategories = async ({
       c.slug,
       c.parent_id,
       c.level,
+      c.is_active,
+      c.description,
       c.created_at,
       c.updated_at
     FROM categories c
@@ -74,7 +78,6 @@ export const findCategories = async ({
     pool.query(countQuery, values),
     pool.query(dataQuery, dataValues)
   ]);
-
   return {
     rows: dataResult.rows.map(mapCategory),
     total: countResult.rows[0].total
@@ -164,6 +167,7 @@ export const findCategoryBySlug = async (
 export const createCategory = async ({
   name,
   slug,
+  description,
   parentId,
   level = 1
 }) => {
@@ -171,14 +175,16 @@ export const createCategory = async ({
     INSERT INTO categories (
       name,
       slug,
+      description,
       parent_id,
       level
     )
-    VALUES ($1, $2, $3, $4)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING
       id,
       name,
       slug,
+      description,
       parent_id,
       level,
       created_at,
@@ -188,6 +194,7 @@ export const createCategory = async ({
   const { rows } = await pool.query(query, [
     name,
     slug,
+    description,
     parentId,
     level
   ]);
@@ -199,6 +206,7 @@ export const updateCategory = async ({
   id,
   name,
   slug,
+  description,
   parentId,
   level
 }) => {
@@ -208,13 +216,15 @@ export const updateCategory = async ({
       name = $1,
       slug = $2,
       parent_id = $3,
-      level = $4,
+      level = $5,
+      description = $4,
       updated_at = NOW()
-    WHERE id = $5
+    WHERE id = $6
     RETURNING
       id,
       name,
       slug,
+      description,
       parent_id,
       level,
       created_at,
@@ -225,6 +235,7 @@ export const updateCategory = async ({
     name,
     slug,
     parentId,
+    description,
     level,
     id
   ]);

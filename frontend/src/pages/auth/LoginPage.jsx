@@ -45,12 +45,13 @@ function LoginPage() {
         return
       }
 
-      const { token, user } = response.data
+      const { accessToken, user } = response.data
 
       loginStore({
-        token,
+        accessToken,
         user,
       })
+      console.log(loginStore, 'loginStore')
 
       toast.success('Login berhasil')
 

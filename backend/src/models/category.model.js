@@ -4,6 +4,8 @@ export const createCategoryModel = ({
   slug,
   parentId,
   level,
+  is_active,
+  description,
   createdAt,
   updatedAt
 }) => ({
@@ -12,6 +14,8 @@ export const createCategoryModel = ({
   slug,
   parentId,
   level,
+  is_active,
+  description,
   createdAt,
   updatedAt
 });

@@ -147,7 +147,8 @@ export const getCategoryById = async (id) => {
 
 export const createNewCategory = async ({
   name,
-  parentId = null
+  parentId = null,
+  description
 }) => {
   const normalizedName = normalizeName(name);
   const slug = generateSlug(normalizedName);
@@ -183,9 +184,14 @@ export const createNewCategory = async ({
     ? 1
     : parentLevel + 1;
 
+  if(!description){
+    description = null;
+  }
+
   return createCategory({
     name: normalizedName,
     slug,
+    description,
     parentId,
     level
   });
@@ -194,7 +200,8 @@ export const createNewCategory = async ({
 export const updateExistingCategory = async ({
   id,
   name,
-  parentId = null
+  parentId = null,
+  description
 }) => {
   const existingCategory = await findCategoryById(id);
 
@@ -242,13 +249,18 @@ export const updateExistingCategory = async ({
   });
 
   const level = parentLevel === null
-    ? 0
+    ? 1
     : parentLevel;
+  
+  if(!description){
+    description = null;
+  }
 
   return updateCategory({
     id,
     name: normalizedName,
     slug,
+    description,
     parentId,
     level
   });

@@ -11,6 +11,11 @@ export const createCategorySchema = Joi.object({
     .integer()
     .positive()
     .allow(null)
+    .default(null),
+
+  description: Joi.string()
+    .trim()
+    .allow(null)
     .default(null)
 });
 
@@ -24,6 +29,11 @@ export const updateCategorySchema = Joi.object({
   parentId: Joi.number()
     .integer()
     .positive()
+    .allow(null)
+    .default(null),
+
+  description: Joi.string()
+    .trim()
     .allow(null)
     .default(null)
 });
