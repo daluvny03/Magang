@@ -11,6 +11,7 @@ import ForbiddenPage from '../pages/ForbiddenPage'
 import DashboardPage from '../pages/admin/DashboardPage'
 import LoginPage from '../pages/auth/LoginPage'
 import CategoryPage from '../pages/admin/categories/CategoryPage'
+import QuestionPage from '../pages/admin/questions/QuestionPage'
 
 function AppRouter() {
     return (
@@ -44,6 +45,9 @@ function AppRouter() {
                             path="categories"
                             element={<CategoryPage />}
                         />
+                        <Route
+                            path="questions"
+                            element={<QuestionPage />} />
                     </Route>
                 </Route>
 

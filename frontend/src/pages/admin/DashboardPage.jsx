@@ -18,7 +18,7 @@ function DashboardPage() {
           </p>
 
           <p className="mt-2 text-2xl font-bold">
-            -
+            20k+
           </p>
         </div>
 
@@ -28,7 +28,7 @@ function DashboardPage() {
           </p>
 
           <p className="mt-2 text-2xl font-bold">
-            -
+            50
           </p>
         </div>
 
@@ -38,7 +38,7 @@ function DashboardPage() {
           </p>
 
           <p className="mt-2 text-2xl font-bold">
-            -
+            50
           </p>
         </div>
 
@@ -48,7 +48,7 @@ function DashboardPage() {
           </p>
 
           <p className="mt-2 text-2xl font-bold">
-            -
+            99K+
           </p>
         </div>
       </div>
