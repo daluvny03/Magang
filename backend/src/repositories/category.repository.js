@@ -266,3 +266,40 @@ export const deleteCategory = async (id) => {
 
   return rows[0] || null;
 };
+
+export const findCategoryByHierarchy = async ({
+  category,
+  subcategory = null,
+  chapter = null
+}) => {
+  const query = `
+    SELECT
+      child.id,
+      child.name,
+      child.slug,
+      child.parent_id,
+      child.level
+    FROM categories child
+
+    LEFT JOIN categories parent
+      ON parent.id = child.parent_id
+
+    LEFT JOIN categories grandparent
+      ON grandparent.id = parent.parent_id
+
+    WHERE
+      LOWER(grandparent.name) = LOWER($1)
+      AND LOWER(parent.name) = LOWER($2)
+      AND LOWER(child.name) = LOWER($3)
+
+    LIMIT 1
+  `;
+
+  const { rows } = await pool.query(query, [
+    category,
+    subcategory,
+    chapter
+  ]);
+
+  return rows[0] || null;
+};

@@ -14,3 +14,39 @@ export const errorMiddleware = (error, req, res, next) => {
     errors
   });
 };
+import multer from 'multer';
+
+export const errorHandler = (
+  error,
+  req,
+  res,
+  next
+) => {
+  if (error instanceof multer.MulterError) {
+    return res.status(422).json({
+      success: false,
+      message: 'Excel upload failed',
+      errors: [
+        {
+          field: 'file',
+          message: error.message
+        }
+      ]
+    });
+  }
+
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({
+      success: false,
+      message: error.message,
+      errors: error.errors || []
+    });
+  }
+
+  console.error(error);
+
+  return res.status(500).json({
+    success: false,
+    message: 'Internal server error'
+  });
+};
