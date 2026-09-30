@@ -240,6 +240,38 @@ export const updateQuestion = async ({
   return findQuestionById(rows[0].id);
 };
 
+export const findQuestionByText = async ({
+  questionText,
+  excludeId = null
+}) => {
+  const normalizedText = questionText.trim().toLowerCase()
+
+  const values = [normalizedText]
+
+  let query = `
+    SELECT id, question_text
+    FROM questions
+    WHERE LOWER(TRIM(question_text)) = $1
+      AND is_active = true
+  `
+
+  if (excludeId !== null && excludeId !== undefined) {
+    values.push(Number(excludeId))
+
+    query += `
+      AND id <> $2
+    `
+  }
+
+  query += `
+    LIMIT 1
+  `
+
+  const { rows } = await pool.query(query, values)
+
+  return rows[0] || null
+}
+
 export const deactivateQuestion = async (id) => {
   const query = `
     UPDATE questions
@@ -253,4 +285,133 @@ export const deactivateQuestion = async (id) => {
   const { rows } = await pool.query(query, [id]);
 
   return rows[0] || null;
+};
+
+export const findDuplicateQuestions = async (
+  questions
+) => {
+  if (!questions.length) {
+    return [];
+  }
+
+  const conditions = [];
+  const values = [];
+
+  questions.forEach((question, index) => {
+    const questionIndex = index * 2;
+
+    values.push(
+      question.categoryId,
+      question.questionText.trim()
+    );
+
+    conditions.push(`
+      (
+        category_id = $${questionIndex + 1}
+        AND LOWER(TRIM(question_text))
+          = LOWER(TRIM($${questionIndex + 2}))
+        AND is_active = true
+      )
+    `);
+  });
+
+  const query = `
+    SELECT
+      id,
+      category_id,
+      question_text
+    FROM questions
+    WHERE ${conditions.join(' OR ')}
+  `;
+
+  const { rows } = await pool.query(
+    query,
+    values
+  );
+
+  return rows;
+};
+
+export const createQuestionsTransaction = async (
+  questions
+) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const insertedQuestions = [];
+
+    for (const question of questions) {
+      const query = `
+        INSERT INTO questions (
+          category_id,
+          question_text,
+          answer_options,
+          correct_answer,
+          explanation,
+          score,
+          difficulty,
+          is_active
+        )
+        VALUES (
+          $1,
+          $2,
+          $3::jsonb,
+          $4,
+          $5::jsonb,
+          $6,
+          $7,
+          $8
+        )
+        RETURNING
+          id,
+          category_id,
+          question_text,
+          answer_options,
+          correct_answer,
+          explanation,
+          score,
+          difficulty,
+          is_active,
+          created_at,
+          updated_at
+      `;
+
+      const values = [
+        question.categoryId,
+        question.questionText,
+        JSON.stringify(
+          question.answerOptions
+        ),
+        question.correctAnswer,
+        JSON.stringify(
+          question.explanation
+        ),
+        question.score,
+        question.difficulty,
+        question.isActive
+      ];
+
+      const { rows } =
+        await client.query(
+          query,
+          values
+        );
+
+      insertedQuestions.push(
+        rows[0]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    return insertedQuestions;
+  } catch (error) {
+    await client.query('ROLLBACK');
+
+    throw error;
+  } finally {
+    client.release();
+  }
 };

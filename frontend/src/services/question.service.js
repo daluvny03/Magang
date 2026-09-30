@@ -4,7 +4,6 @@ export const getQuestions = async (params = {}) => {
   const response = await api.get('/questions', {
     params,
   })
-  console.log('getQuestions response:', response.data)
   return response.data
 }
 

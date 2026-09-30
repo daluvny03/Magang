@@ -1,6 +1,7 @@
 import {
   findQuestions,
   findQuestionById,
+  findQuestionByText,
   createQuestion,
   updateQuestion,
   deactivateQuestion
@@ -62,6 +63,24 @@ const validateCategory = async (categoryId) => {
   return category;
 };
 
+const validateDuplicateQuestion = async ({
+  questionText,
+  excludeId = null
+}) => {
+  const existingQuestion = await findQuestionByText({
+    questionText,
+    excludeId
+  });
+
+  if (existingQuestion) {
+    throw new AppError(
+      'A question with the same text already exists',
+      409,
+      'QUESTION_ALREADY_EXISTS'
+    );
+  }
+};
+
 export const getQuestions = async ({
   page,
   limit,
@@ -108,7 +127,8 @@ export const createNewQuestion = async (data) => {
   const {
     categoryId,
     answerOptions,
-    correctAnswer
+    correctAnswer,
+    questionText
   } = data;
 
   await validateCategory(categoryId);
@@ -118,6 +138,10 @@ export const createNewQuestion = async (data) => {
     correctAnswer
   });
 
+  await validateDuplicateQuestion({
+    questionText
+  });
+
   return createQuestion(data);
 };
 
@@ -125,28 +149,37 @@ export const updateExistingQuestion = async ({
   id,
   ...data
 }) => {
-  const existingQuestion = await findQuestionById(id);
+    console.log('UPDATE QUESTION:', {
+    id,
+    questionText: data.questionText
+  })
+  const existingQuestion = await findQuestionById(id)
 
   if (!existingQuestion) {
     throw new AppError(
       'Question not found',
       404,
       'QUESTION_NOT_FOUND'
-    );
+    )
   }
 
-  await validateCategory(data.categoryId);
+  await validateCategory(data.categoryId)
 
   validateQuestionOptions({
     answerOptions: data.answerOptions,
     correctAnswer: data.correctAnswer
-  });
+  })
+
+  await validateDuplicateQuestion({
+    questionText: data.questionText,
+    excludeId: id
+  })
 
   return updateQuestion({
     id,
     ...data
-  });
-};
+  })
+}
 
 export const removeQuestion = async (id) => {
   const existingQuestion = await findQuestionById(id);

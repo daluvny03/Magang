@@ -1,7 +1,8 @@
 import { Router } from 'express';
 
 import {
-  previewQuestionImport
+  previewQuestionImport,
+  importQuestions
 } from '../controllers/excel-import.controller.js';
 
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -16,6 +17,14 @@ router.post(
   authorize('admin'),
   uploadExcel.single('file'),
   previewQuestionImport
+);
+
+router.post(
+  '/',
+  authenticate,
+  authorize('admin'),
+  uploadExcel.single('file'),
+  importQuestions
 );
 
 export default router;

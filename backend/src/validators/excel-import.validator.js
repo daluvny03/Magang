@@ -154,12 +154,12 @@ export const validateImportRow = (row, rowNumber) => {
   if (
     !Number.isInteger(difficulty) ||
     difficulty < 1 ||
-    difficulty > 5
+    difficulty > 3
   ) {
     errors.push({
       row: rowNumber,
       field: 'difficulty',
-      message: 'Difficulty must be an integer between 1 and 5'
+      message: 'Difficulty must be an integer between 1 and 3'
     });
   }
 
@@ -195,26 +195,40 @@ export const detectDuplicateRows = (rows) => {
   const duplicates = [];
 
   rows.forEach((row, index) => {
-    const question = String(row.question || '')
+    const category = String(
+      row.category || ''
+    )
       .trim()
       .toLowerCase();
 
-    if (!question) {
+    const question = String(
+      row.question || ''
+    )
+      .trim()
+      .toLowerCase();
+
+    if (!category || !question) {
       return;
     }
 
-    if (seen.has(question)) {
+    const key = `${category}::${question}`;
+
+    if (seen.has(key)) {
       duplicates.push({
         row: index + 2,
-        duplicateOf: seen.get(question),
+        duplicateOf: seen.get(key),
         field: 'question',
-        message: 'Duplicate question detected'
+        message:
+          'Duplicate question detected in Excel'
       });
 
       return;
     }
 
-    seen.set(question, index + 2);
+    seen.set(
+      key,
+      index + 2
+    );
   });
 
   return duplicates;
