@@ -23,11 +23,14 @@ import {
     useUpdateQuestion,
 } from '../../../hooks/useQuestions'
 
+import QuestionImportModal from '../../../components/question-import/QuestionImportModal'
+
 function QuestionPage() {
     const [page, setPage] = useState(1)
     const [search, setSearch] = useState('')
     const [categoryId, setCategoryId] = useState('')
     const [isActive, setIsActive] = useState('true')
+    const [isImportOpen, setIsImportOpen] = useState(false)
 
     const [isFormOpen, setIsFormOpen] = useState(false)
     const [formMode, setFormMode] = useState('create')
@@ -316,6 +319,14 @@ function QuestionPage() {
 
                 <button
                     type="button"
+                    onClick={() => setIsImportOpen(true)}
+                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Import Excel
+                </button>
+
+                <button
+                    type="button"
                     onClick={handleOpenCreate}
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
                 >
@@ -388,6 +399,10 @@ function QuestionPage() {
                 isDeleting={deleteMutation.isPending}
                 onClose={handleCloseDelete}
                 onConfirm={handleConfirmDelete}
+            />
+            <QuestionImportModal
+                isOpen={isImportOpen}
+                onClose={() => setIsImportOpen(false)}
             />
         </div>
     )

@@ -153,8 +153,10 @@ const transformRow = async (row, rowNumber) => {
 };
 
 export const previewExcelImport = async (buffer) => {
-  const { sheetName, rows } =
-    parseExcelBuffer(buffer);
+  const {
+    sheetName,
+    rows
+  } = parseExcelBuffer(buffer);
 
   const headerResult =
     validateHeaders(rows);
@@ -168,66 +170,141 @@ export const previewExcelImport = async (buffer) => {
     );
   }
 
-  const duplicateRows =
-    detectDuplicateRows(rows);
+  const rowStatusMap =
+    createRowStatusMap(rows);
 
-  const validationErrors = [];
-
+  // 1. Basic row validation
   rows.forEach((row, index) => {
-    const result = validateImportRow(
-      row,
-      index + 2
-    );
+    const rowNumber = index + 2;
+
+    const result =
+      validateImportRow(
+        row,
+        rowNumber
+      );
 
     if (!result.valid) {
-      validationErrors.push(
-        ...result.errors
+      addRowErrors(
+        rowStatusMap,
+        result.errors
       );
     }
   });
 
-  const transformedRows = [];
+  // 2. Duplicate dalam Excel
+  const duplicateRows =
+    detectDuplicateRows(rows);
 
-  const databaseDuplicates =
-  await detectDatabaseDuplicates(
-    transformedRows
+  addRowErrors(
+    rowStatusMap,
+    duplicateRows
   );
+
+  // 3. Transform row
+  const transformedRows = [];
 
   for (
     let index = 0;
     index < rows.length;
     index++
   ) {
-    const result = await transformRow(
-      rows[index],
-      index + 2
-    );
+    const rowNumber = index + 2;
 
-    if (!result.valid) {
-      validationErrors.push(
-        ...result.errors
-      );
+    const rowStatus =
+      rowStatusMap.get(rowNumber);
+
+    // Jangan transform row yang sudah invalid
+    if (!rowStatus.valid) {
       continue;
     }
 
-    transformedRows.push(result);
+    const result =
+      await transformRow(
+        rows[index],
+        rowNumber
+      );
+
+    if (!result.valid) {
+      addRowErrors(
+        rowStatusMap,
+        result.errors
+      );
+
+      continue;
+    }
+
+    transformedRows.push(
+      result
+    );
   }
 
-  const errors = [
-    ...validationErrors,
-    ...duplicateRows,
-    ...databaseDuplicates
-    ];
+  // 4. Duplicate dengan database
+  const databaseDuplicates =
+    await detectDatabaseDuplicates(
+      transformedRows
+    );
+
+  addRowErrors(
+    rowStatusMap,
+    databaseDuplicates
+  );
+
+  // 5. Build preview
+  const preview = [];
+
+  for (
+    let index = 0;
+    index < rows.length;
+    index++
+  ) {
+    const rowNumber = index + 2;
+
+    const rowStatus =
+      rowStatusMap.get(rowNumber);
+
+    const transformedRow =
+      transformedRows.find(
+        (item) =>
+          item.rowNumber === rowNumber
+      );
+
+    preview.push({
+      rowNumber,
+      valid: rowStatus.valid,
+      ...(rowStatus.errors.length > 0
+        ? {
+            errors: rowStatus.errors
+          }
+        : {}),
+      ...(transformedRow
+        ? {
+            data: transformedRow.data
+          }
+        : {})
+    });
+  }
+
+  const validRows =
+    preview.filter(
+      (row) => row.valid
+    ).length;
+
+  const invalidRows =
+    preview.filter(
+      (row) => !row.valid
+    ).length;
+
+  const errors = preview.flatMap(
+    (row) => row.errors || []
+  );
 
   return {
     sheetName,
     totalRows: rows.length,
-    validRows:
-      transformedRows.length,
-    invalidRows:
-      rows.length - transformedRows.length,
+    validRows,
+    invalidRows,
     errors,
-    preview: transformedRows
+    preview
   };
 };
 
@@ -284,38 +361,37 @@ export const importQuestionsFromExcel =
       );
     }
 
-    const validationErrors = [];
+    const rowStatusMap =
+      createRowStatusMap(rows);
 
+    // 1. Basic validation
     rows.forEach((row, index) => {
+      const rowNumber = index + 2;
+
       const result =
         validateImportRow(
           row,
-          index + 2
+          rowNumber
         );
 
       if (!result.valid) {
-        validationErrors.push(
-          ...result.errors
+        addRowErrors(
+          rowStatusMap,
+          result.errors
         );
       }
     });
 
+    // 2. Duplicate dalam Excel
     const duplicateRows =
       detectDuplicateRows(rows);
 
-    validationErrors.push(
-      ...duplicateRows
+    addRowErrors(
+      rowStatusMap,
+      duplicateRows
     );
 
-    if (validationErrors.length > 0) {
-      throw new AppError(
-        'Excel validation failed',
-        422,
-        'EXCEL_VALIDATION_FAILED',
-        validationErrors
-      );
-    }
-
+    // 3. Transform hanya row valid
     const transformedRows = [];
 
     for (
@@ -323,15 +399,25 @@ export const importQuestionsFromExcel =
       index < rows.length;
       index++
     ) {
+      const rowNumber = index + 2;
+
+      const rowStatus =
+        rowStatusMap.get(rowNumber);
+
+      if (!rowStatus.valid) {
+        continue;
+      }
+
       const result =
         await transformRow(
           rows[index],
-          index + 2
+          rowNumber
         );
 
       if (!result.valid) {
-        validationErrors.push(
-          ...result.errors
+        addRowErrors(
+          rowStatusMap,
+          result.errors
         );
 
         continue;
@@ -342,46 +428,136 @@ export const importQuestionsFromExcel =
       );
     }
 
-    if (validationErrors.length > 0) {
-      throw new AppError(
-        'Excel validation failed',
-        422,
-        'EXCEL_VALIDATION_FAILED',
-        validationErrors
-      );
-    }
-
+    // 4. Duplicate database
     const databaseDuplicates =
       await detectDatabaseDuplicates(
         transformedRows
       );
 
-    if (
-      databaseDuplicates.length > 0
-    ) {
-      throw new AppError(
-        'Duplicate questions detected',
-        409,
-        'DUPLICATE_QUESTIONS',
-        databaseDuplicates
-      );
+    addRowErrors(
+      rowStatusMap,
+      databaseDuplicates
+    );
+
+    // 5. Ambil hanya row yang benar-benar valid
+    const validQuestions =
+      transformedRows
+        .filter((item) => {
+          const rowStatus =
+            rowStatusMap.get(
+              item.rowNumber
+            );
+
+          return rowStatus.valid;
+        })
+        .map(
+          (item) => item.data
+        );
+
+    // 6. Insert hanya kalau ada row valid
+    let insertedQuestions = [];
+
+    if (validQuestions.length > 0) {
+      insertedQuestions =
+        await createQuestionsTransaction(
+          validQuestions
+        );
     }
 
-    const questions =
-      transformedRows.map(
-        (item) => item.data
-      );
+    // 7. Build error report
+    const preview = rows.map(
+      (row, index) => {
+        const rowNumber =
+          index + 2;
 
-    const insertedQuestions =
-      await createQuestionsTransaction(
-        questions
+        const rowStatus =
+          rowStatusMap.get(
+            rowNumber
+          );
+
+        const transformedRow =
+          transformedRows.find(
+            (item) =>
+              item.rowNumber ===
+              rowNumber
+          );
+
+        return {
+          rowNumber,
+          valid: rowStatus.valid,
+          ...(rowStatus.errors.length > 0
+            ? {
+                errors:
+                  rowStatus.errors
+              }
+            : {}),
+          ...(transformedRow &&
+          rowStatus.valid
+            ? {
+                data:
+                  transformedRow.data
+              }
+            : {})
+        };
+      }
+    );
+
+    const validRows =
+      preview.filter(
+        (row) => row.valid
+      ).length;
+
+    const invalidRows =
+      preview.filter(
+        (row) => !row.valid
+      ).length;
+
+    const errors =
+      preview.flatMap(
+        (row) => row.errors || []
       );
 
     return {
       sheetName,
       totalRows: rows.length,
+      validRows,
+      invalidRows,
       insertedRows:
         insertedQuestions.length,
+      skippedRows:
+        invalidRows,
+      errors,
       data: insertedQuestions
     };
   };
+
+  const createRowStatusMap = (rows) => {
+  return rows.reduce((map, row, index) => {
+    const rowNumber = index + 2;
+
+    map.set(rowNumber, {
+      rowNumber,
+      valid: true,
+      errors: []
+    });
+
+    return map;
+  }, new Map());
+};
+
+const addRowErrors = (
+  rowStatusMap,
+  errors
+) => {
+  errors.forEach((error) => {
+    const rowStatus =
+      rowStatusMap.get(error.row);
+
+    if (!rowStatus) {
+      return;
+    }
+
+    rowStatus.valid = false;
+    rowStatus.errors.push(error);
+  });
+};
