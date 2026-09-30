@@ -1,6 +1,7 @@
 import {
   getCategories,
   getCategoryById,
+  getCategoryTree,
   createNewCategory,
   updateExistingCategory,
   removeCategory
@@ -74,6 +75,26 @@ export const deleteCategory = async (req, res, next) => {
       success: true,
       message: 'Category deleted successfully',
       data: null
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getCategoryTreeController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const categories = await getCategoryTree({
+      search: req.query.search
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Category tree retrieved successfully',
+      data: categories
     });
   } catch (error) {
     next(error);

@@ -3,12 +3,17 @@ import { Search, X } from 'lucide-react'
 function QuestionFilters({
   search,
   categoryId,
+  isActive,
   categories,
   onSearchChange,
   onCategoryChange,
+  onStatusChange,
   onReset,
 }) {
-  const hasFilter = search || categoryId
+  const hasFilter =
+    search ||
+    categoryId ||
+    isActive !== 'true'
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -40,6 +45,16 @@ function QuestionFilters({
               {category.name}
             </option>
           ))}
+        </select>
+
+        <select
+          value={isActive}
+          onChange={onStatusChange}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+        >
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+          <option value="">All Status</option>
         </select>
       </div>
 
