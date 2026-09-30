@@ -4,6 +4,7 @@ export const getCategories = async (params = {}) => {
   const response = await api.get('/categories', {
     params,
   })
+  console.log('getCategories response:', response.data)
   return response.data
 }
 
@@ -27,6 +28,14 @@ export const updateCategory = async (id, payload) => {
 
 export const deleteCategory = async (id) => {
   const response = await api.delete(`/categories/${id}`)
+
+  return response.data
+}
+
+export const getCategoryTree = async (params = {}) => {
+  const response = await api.get('/categories/tree', {
+    params,
+  })
 
   return response.data
 }

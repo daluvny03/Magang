@@ -21,11 +21,12 @@ const categorySchema = z.object({
 
 function CategoryFormModal({
   isOpen,
-  mode = 'create',
+  mode,
   category,
-  parentCategories = [],
+  parentCategory,
+  parentCategories,
   isSubmitting,
-  serverErrors = {},
+  serverErrors,
   onClose,
   onSubmit,
 }) {
@@ -47,15 +48,17 @@ function CategoryFormModal({
     if (!isOpen) {
       return
     }
-
     reset({
       name: category?.name || '',
-      parentId: category?.parentId
-        ? String(category.parentId)
-        : '',
+      parentId:
+        mode === 'create' && parentCategory
+          ? String(parentCategory.id)
+          : category?.parentId
+            ? String(category.parentId)
+            : '',
       description: category?.description || '',
     })
-  }, [isOpen, category, reset])
+  }, [isOpen, mode, category, parentCategory, reset])
 
   if (!isOpen) {
     return null

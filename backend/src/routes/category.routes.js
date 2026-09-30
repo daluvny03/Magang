@@ -3,6 +3,7 @@ import { Router } from 'express';
 import {
   getAllCategories,
   getCategoryDetail,
+  getCategoryTreeController,
   createCategory,
   updateCategory,
   deleteCategory
@@ -26,6 +27,13 @@ router.get(
   authorize('admin'),
   validate(categoryQuerySchema),
   getAllCategories
+);
+
+router.get(
+  '/tree',
+  authenticate,
+  authorize('admin'),
+  getCategoryTreeController
 );
 
 router.get(

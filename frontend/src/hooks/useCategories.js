@@ -8,6 +8,7 @@ import {
   createCategory,
   deleteCategory,
   getCategories,
+  getCategoryTree,
   updateCategory,
 } from '../services/category.service'
 
@@ -59,5 +60,12 @@ export const useDeleteCategory = () => {
         queryKey: ['categories'],
       })
     },
+  })
+}
+
+export const useCategoryTree = (params) => {
+  return useQuery({
+    queryKey: ['categories', 'tree', params],
+    queryFn: () => getCategoryTree(params),
   })
 }

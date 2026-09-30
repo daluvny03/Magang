@@ -303,3 +303,77 @@ export const findCategoryByHierarchy = async ({
 
   return rows[0] || null;
 };
+
+export const findCategoryTree = async ({ search } = {}) => {
+  const normalizedSearch = search?.trim() || null;
+
+  const values = normalizedSearch
+    ? [`%${normalizedSearch}%`]
+    : [];
+
+  const query = `
+    WITH RECURSIVE category_tree AS (
+      -- Base query
+      SELECT
+        c.id,
+        c.name,
+        c.slug,
+        c.parent_id,
+        c.level,
+        c.is_active,
+        c.description,
+        c.created_at,
+        c.updated_at
+      FROM categories c
+      ${
+        normalizedSearch
+          ? `
+            WHERE
+              c.name ILIKE $1
+              OR c.slug ILIKE $1
+          `
+          : ''
+      }
+
+      ${
+        normalizedSearch
+          ? `
+            UNION
+
+            -- Ambil ancestor dari category yang match
+            SELECT
+              parent.id,
+              parent.name,
+              parent.slug,
+              parent.parent_id,
+              parent.level,
+              parent.is_active,
+              parent.description,
+              parent.created_at,
+              parent.updated_at
+            FROM categories parent
+            INNER JOIN category_tree child
+              ON child.parent_id = parent.id
+          `
+          : ''
+      }
+    )
+
+    SELECT DISTINCT
+      id,
+      name,
+      slug,
+      parent_id,
+      level,
+      is_active,
+      description,
+      created_at,
+      updated_at
+    FROM category_tree
+    ORDER BY level ASC, name ASC, id ASC
+  `;
+
+  const { rows } = await pool.query(query, values);
+
+  return rows.map(mapCategory);
+};
