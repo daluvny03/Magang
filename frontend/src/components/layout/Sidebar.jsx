@@ -5,6 +5,8 @@ import {
   Settings,
   Tags,
   FileQuestion,
+  Package,
+  Users,
 } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
@@ -23,6 +25,16 @@ const navigation = [
     label: 'Questions',
     path: '/admin/questions',
     icon: FileQuestion,
+  },
+  {
+    label: 'Tryout Packages',
+    path: '/admin/tryout-packages',
+    icon: Package,
+  },
+  {
+    label: 'Users',
+    path: '/admin/users',
+    icon: Users,
   },
   {
     label: 'Settings',
