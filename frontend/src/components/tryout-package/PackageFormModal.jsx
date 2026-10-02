@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { X } from 'lucide-react'
+import QuestionGroupSelector from './QuestionGroupSelector'
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Package name is required'),
@@ -55,7 +56,6 @@ function PackageFormModal({
   mode,
   packageData,
   categories,
-  questions,
   tiers,
   isSubmitting,
   isReferenceLoading,
@@ -70,6 +70,7 @@ function PackageFormModal({
     reset,
     setValue,
     watch,
+    control,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(schema),
@@ -79,6 +80,8 @@ function PackageFormModal({
   const name = watch('name')
   const slug = watch('slug')
   const selectedQuestions = watch('questionIds') || []
+  const selectedCategoryIds = watch('categoryIds') || []
+  const questionCategories = useMemo(() => filterCategoriesByPackageSelection(categories, selectedCategoryIds), [categories, selectedCategoryIds])
 
   useEffect(() => {
     if (!isOpen) return
@@ -201,29 +204,31 @@ function PackageFormModal({
             ))}
           </SelectionSection>
 
-          <SelectionSection title={`Questions (${selectedQuestions.length} selected)`} error={errors.questionIds?.message || serverErrors.questions} loading={isReferenceLoading}>
-            {questions.map((question) => (
-              <CheckItem
-                key={question.id}
-                label={question.questionText}
-                meta={question.category?.name || question.categoryName}
-                value={String(question.id)}
-                register={register('questionIds')}
+          <section className="rounded-xl border border-gray-200 p-5">
+            <h3 className="font-semibold text-gray-900">Questions ({selectedQuestions.length} selected) <span className="text-red-500">*</span></h3>
+            <div className="mt-4">
+              <Controller
+                name="questionIds"
+                control={control}
+                render={({ field }) => (
+                  <QuestionGroupSelector
+                    categories={questionCategories}
+                    selectedQuestionIds={field.value || []}
+                    initialQuestions={packageData?.questions || []}
+                    disabled={isSubmitting}
+                    onChange={(ids) => field.onChange(ids)}
+                  />
+                )}
               />
-            ))}
-          </SelectionSection>
+            </div>
+            {(errors.questionIds?.message || serverErrors.questions) && <p className="mt-2 text-xs text-red-600">{errors.questionIds?.message || serverErrors.questions}</p>}
+          </section>
 
           <SelectionSection title="Subscription Tiers" error={errors.subscriptionTierIds?.message || serverErrors.subscriptionTierIds} loading={isReferenceLoading}>
             {tiers.map((tier) => (
               <CheckItem key={tier.id} label={tier.name} meta={tier.price != null ? `Price: ${tier.price}` : ''} value={String(tier.id)} register={register('subscriptionTierIds')} />
             ))}
           </SelectionSection>
-
-          {isEdit && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              The current package detail API does not return questionOrder. Existing questions are therefore submitted in the order returned by the detail endpoint unless you change the selection.
-            </div>
-          )}
 
           <div className="flex justify-end gap-3 border-t border-gray-200 pt-5">
             <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
@@ -265,6 +270,21 @@ function CheckItem({ label, meta, value, register }) {
 
 function ErrorBox({ message }) {
   return <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{message}</div>
+}
+
+function filterCategoriesByPackageSelection(categories, selectedIds) {
+  const selected = new Set((selectedIds || []).map(String))
+  if (!selected.size) return []
+  const byId = new Map((categories || []).map(category => [String(category.id), category]))
+  return (categories || []).filter(category => {
+    let current = category
+    while (current) {
+      if (selected.has(String(current.id))) return true
+      const parentId = current.parentId ?? current.parent_id
+      current = parentId != null ? byId.get(String(parentId)) : null
+    }
+    return false
+  })
 }
 
 export default PackageFormModal

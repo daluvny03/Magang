@@ -7,7 +7,8 @@ import {
   createCategory,
   updateCategory,
   countChildren,
-  deleteCategory
+  deleteCategory,
+  findActiveQuestionIdsByCategoryId
 } from '../repositories/category.repository.js';
 
 import { generateSlug } from '../utils/slug.js';
@@ -335,4 +336,25 @@ export const getCategoryTree = async ({ search } = {}) => {
   });
 
   return roots;
+};
+
+export const getCategoryQuestionIds = async (categoryId) => {
+  const category = await findCategoryById(categoryId);
+
+  if (!category) {
+    throw new AppError(
+      'Category not found',
+      404,
+      'CATEGORY_NOT_FOUND'
+    );
+  }
+
+  const questionIds =
+    await findActiveQuestionIdsByCategoryId(categoryId);
+
+  return {
+    categoryId: category.id,
+    questionCount: questionIds.length,
+    questionIds
+  };
 };

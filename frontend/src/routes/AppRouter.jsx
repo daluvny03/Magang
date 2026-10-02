@@ -12,6 +12,8 @@ import DashboardPage from '../pages/admin/DashboardPage'
 import LoginPage from '../pages/auth/LoginPage'
 import CategoryPage from '../pages/admin/categories/CategoryPage'
 import QuestionPage from '../pages/admin/questions/QuestionPage'
+import TryoutPackagePage from '../pages/admin/tryout-packages/TryoutPackagePage'
+import UserPage from '../pages/admin/users/UserPage'
 
 function AppRouter() {
     return (
@@ -47,7 +49,16 @@ function AppRouter() {
                         />
                         <Route
                             path="questions"
-                            element={<QuestionPage />} />
+                            element={<QuestionPage />}
+                        />
+                        <Route
+                            path="tryout-packages"
+                            element={<TryoutPackagePage />}
+                        />
+                        <Route
+                            path="users"
+                            element={<UserPage />}
+                        />
                     </Route>
                 </Route>
 

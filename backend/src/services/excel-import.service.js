@@ -36,6 +36,7 @@ const findCategoryHierarchy = async ({
   subcategory,
   chapter
 }) => {
+    
   const rootCategory =
     await findCategoryByNameAndParent({
       name: category,
@@ -45,7 +46,7 @@ const findCategoryHierarchy = async ({
   if (!rootCategory) {
     return null;
   }
-
+  console.log('Found root category:', rootCategory);
   if (!subcategory) {
     return rootCategory;
   }
@@ -63,6 +64,8 @@ const findCategoryHierarchy = async ({
   if (!chapter) {
     return subCategory;
   }
+
+  console.log('Finding chapter:', chapter, 'under subcategory:', subCategory.id);
 
   return findCategoryByNameAndParent({
     name: chapter,

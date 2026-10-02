@@ -4,7 +4,7 @@ import { createCategoryModel } from '../models/category.model.js';
 const mapCategory = (row) => {
   if (!row) return null;
 
-  return createCategoryModel({
+  const result = createCategoryModel({
     id: row.id,
     name: row.name,
     slug: row.slug,
@@ -12,9 +12,12 @@ const mapCategory = (row) => {
     level: row.level,
     is_active: row.is_active,
     description: row.description,
+    questionCount: row.question_count ?? 0,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
   });
+
+  return result;
 };
 
 export const findCategories = async ({
@@ -57,27 +60,33 @@ export const findCategories = async ({
   const offsetIndex = dataValues.length;
 
   const dataQuery = `
-    SELECT
-      c.id,
-      c.name,
-      c.slug,
-      c.parent_id,
-      c.level,
-      c.is_active,
-      c.description,
-      c.created_at,
-      c.updated_at
-    FROM categories c
-    ${whereClause}
-    ORDER BY c.level ASC, c.name ASC, c.id ASC
-    LIMIT $${limitIndex}
-    OFFSET $${offsetIndex}
-  `;
+  SELECT
+    c.id,
+    c.name,
+    c.slug,
+    c.parent_id,
+    c.level,
+    c.is_active,
+    c.description,
+    c.created_at,
+    c.updated_at,
+    COUNT(q.id)::int AS question_count
+  FROM categories c
+  LEFT JOIN questions q
+    ON q.category_id = c.id
+    AND q.is_active = true
+  ${whereClause}
+  GROUP BY c.id
+  ORDER BY c.level ASC, c.name ASC, c.id ASC
+  LIMIT $${limitIndex}
+  OFFSET $${offsetIndex}
+`;
 
   const [countResult, dataResult] = await Promise.all([
     pool.query(countQuery, values),
     pool.query(dataQuery, dataValues)
   ]);
+  console.log('CATEGORY RAW ROWS:', dataResult.rows);
   return {
     rows: dataResult.rows.map(mapCategory),
     total: countResult.rows[0].total
@@ -109,6 +118,12 @@ export const findCategoryByNameAndParent = async ({
   parentId,
   excludeId = null
 }) => {
+
+console.log({
+  name,
+  parentId,
+  excludeId
+});
   const query = `
     SELECT
       id,
@@ -133,6 +148,7 @@ export const findCategoryByNameAndParent = async ({
     parentId,
     excludeId
   ]);
+  console.log('findCategoryByNameAndParent query result:', rows[0]);
 
   return mapCategory(rows[0]);
 };
@@ -376,4 +392,18 @@ export const findCategoryTree = async ({ search } = {}) => {
   const { rows } = await pool.query(query, values);
 
   return rows.map(mapCategory);
+};
+
+export const findActiveQuestionIdsByCategoryId = async (categoryId) => {
+  const query = `
+    SELECT q.id
+    FROM questions q
+    WHERE q.category_id = $1
+      AND q.is_active = true
+    ORDER BY q.id ASC
+  `;
+
+  const { rows } = await pool.query(query, [categoryId]);
+
+  return rows.map((row) => row.id);
 };

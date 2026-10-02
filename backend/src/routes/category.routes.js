@@ -6,7 +6,8 @@ import {
   getCategoryTreeController,
   createCategory,
   updateCategory,
-  deleteCategory
+  deleteCategory,
+  getCategoryQuestionIdsController
 } from '../controllers/category.controller.js';
 
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -41,6 +42,13 @@ router.get(
   authenticate,
   authorize('admin'),
   getCategoryDetail
+);
+
+router.get(
+  '/:id/question-ids',
+  authenticate,
+  authorize('admin'),
+  getCategoryQuestionIdsController
 );
 
 router.post(

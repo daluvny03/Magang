@@ -6,6 +6,7 @@ export const createCategoryModel = ({
   level,
   is_active,
   description,
+  questionCount=0,
   createdAt,
   updatedAt
 }) => ({
@@ -16,6 +17,7 @@ export const createCategoryModel = ({
   level,
   is_active,
   description,
+  questionCount,
   createdAt,
   updatedAt
 });

@@ -4,7 +4,8 @@ import {
   getCategoryTree,
   createNewCategory,
   updateExistingCategory,
-  removeCategory
+  removeCategory,
+  getCategoryQuestionIds
 } from '../services/category.service.js';
 
 export const getAllCategories = async (req, res, next) => {
@@ -95,6 +96,26 @@ export const getCategoryTreeController = async (
       success: true,
       message: 'Category tree retrieved successfully',
       data: categories
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getCategoryQuestionIdsController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const { id } = req.params;
+
+    const result = await getCategoryQuestionIds(id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Category question IDs retrieved successfully',
+      data: result
     });
   } catch (error) {
     next(error);

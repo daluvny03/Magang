@@ -13,7 +13,6 @@ import PackageTable from '../../../components/tryout-package/PackageTable'
 import PackageMappingModal from '../../../components/tryout-package/PackageMappingModal'
 
 import { useCategories } from '../../../hooks/useCategories'
-import { useQuestions } from '../../../hooks/useQuestions'
 import { useSubscriptionTiers } from '../../../hooks/useSubscriptionTiers'
 import {
   useCreateTryoutPackage,
@@ -57,7 +56,6 @@ function TryoutPackagePage() {
   } = useTryoutPackage(selectedId, needsDetail)
 
   const { data: categoryResponse, isLoading: categoriesLoading } = useCategories({ page: 1, limit: 100 })
-  const { data: questionResponse, isLoading: questionsLoading } = useQuestions({ page: 1, limit: 100, isActive: 'true' })
   const { data: tierResponse, isLoading: tiersLoading } = useSubscriptionTiers({ page: 1, limit: 100 })
 
   const createMutation = useCreateTryoutPackage()
@@ -71,12 +69,11 @@ function TryoutPackagePage() {
   const packages = packageResponse?.data || []
   const meta = packageResponse?.meta || { page: 1, limit, total: 0, totalPages: 0 }
   const categories = categoryResponse?.data || []
-  const questions = questionResponse?.data || []
   const tiers = tierResponse?.data || []
   const packageData = detailResponse?.data || null
 
   const isSaving = createMutation.isPending || updateMutation.isPending
-  const isReferenceLoading = categoriesLoading || questionsLoading || tiersLoading || (formMode === 'edit' && isDetailLoading)
+  const isReferenceLoading = categoriesLoading || tiersLoading || (formMode === 'edit' && isDetailLoading)
 
   const handleOpenCreate = () => {
     createMutation.reset()
@@ -222,7 +219,6 @@ function TryoutPackagePage() {
         mode={formMode}
         packageData={packageData}
         categories={categories}
-        questions={questions}
         tiers={tiers}
         isSubmitting={isSaving}
         isReferenceLoading={isReferenceLoading}
@@ -249,7 +245,6 @@ function TryoutPackagePage() {
         type={mappingType}
         packageData={packageData}
         categories={categories}
-        questions={questions}
         tiers={tiers}
         isSaving={categoryMappingMutation.isPending || questionMappingMutation.isPending || tierMappingMutation.isPending}
         onClose={() => setMappingType(null)}
