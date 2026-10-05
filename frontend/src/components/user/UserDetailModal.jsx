@@ -1,13 +1,73 @@
-import { X } from 'lucide-react'
+import Badge from '../ui/Badge'
+import Button from '../ui/Button'
 import LoadingSpinner from '../common/LoadingSpinner'
-const formatDate = (value) => value ? new Date(value).toLocaleString() : '-'
-function UserDetailModal({ isOpen, response, isLoading, onClose }) {
-  if (!isOpen) return null
-  const user = response?.data
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><div className="w-full max-w-xl rounded-2xl bg-white shadow-xl">
-    <div className="flex items-center justify-between border-b px-6 py-4"><div><h2 className="text-xl font-semibold text-gray-900">User Detail</h2><p className="text-sm text-gray-500">Account information from the admin API.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"><X size={20}/></button></div>
-    {isLoading ? <div className="flex min-h-56 items-center justify-center"><LoadingSpinner/></div> : !user ? <div className="p-6 text-sm text-red-600">Unable to load user detail.</div> : <div className="grid gap-5 p-6 sm:grid-cols-2"><Info label="Name" value={user.name}/><Info label="Email" value={user.email}/><Info label="Role" value={user.role}/><Info label="User ID" value={user.id}/><Info label="Created At" value={formatDate(user.createdAt)}/><Info label="Updated At" value={formatDate(user.updatedAt)}/></div>}
-  </div></div>
+import Modal from '../ui/Modal'
+
+const formatDate = (value) =>
+  value
+    ? new Date(value).toLocaleString('id-ID', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
+    : '-'
+
+function DetailRow({ label, children }) {
+  return (
+    <div className="grid grid-cols-3 gap-3 border-b border-gray-50 py-3 last:border-0">
+      <dt className="text-xs text-gray-500">{label}</dt>
+      <dd className="col-span-2 text-sm text-gray-900">{children || '-'}</dd>
+    </div>
+  )
 }
-function Info({label,value}) { return <div><p className="text-xs font-medium uppercase text-gray-400">{label}</p><p className="mt-1 break-words text-sm font-medium text-gray-800">{value || '-'}</p></div> }
+
+function UserDetailModal({ isOpen, response, isLoading, onClose }) {
+  const user = response?.data ?? response
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="User details"
+      footer={
+        <Button variant="soft" onClick={onClose}>
+          Close
+        </Button>
+      }
+    >
+      {isLoading || !user ? (
+        <div className="flex justify-center py-10">
+          <LoadingSpinner />
+        </div>
+      ) : (
+        <>
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-500 text-lg font-semibold text-white">
+              {user.name?.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+              <p className="text-xs text-gray-500">{user.email}</p>
+            </div>
+          </div>
+
+          <dl>
+            <DetailRow label="Role">
+              <Badge tone={user.role === 'admin' ? 'primary' : 'gray'}>
+                {user.role}
+              </Badge>
+            </DetailRow>
+            <DetailRow label="Joined">{formatDate(user.createdAt)}</DetailRow>
+            <DetailRow label="Last updated">
+              {formatDate(user.updatedAt)}
+            </DetailRow>
+            <DetailRow label="User ID">
+              <span className="break-all font-mono text-xs">{user.id}</span>
+            </DetailRow>
+          </dl>
+        </>
+      )}
+    </Modal>
+  )
+}
+
 export default UserDetailModal

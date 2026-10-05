@@ -51,7 +51,6 @@ function LoginPage() {
         accessToken,
         user,
       })
-      console.log(loginStore, 'loginStore')
 
       toast.success('Login berhasil')
 
@@ -77,7 +76,7 @@ function LoginPage() {
           </h1>
 
           <p className="mt-2 text-sm text-gray-500">
-            Masuk ke Admin Dashboard
+            Masuk ke Dashboard
           </p>
         </div>
 

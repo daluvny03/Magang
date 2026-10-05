@@ -5,19 +5,23 @@ import Navbar from '../components/layout/Navbar'
 import Sidebar from '../components/layout/Sidebar'
 
 function AdminLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => window.innerWidth >= 1024
+  )
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
 
-      <div className="lg:pl-64">
-        <Navbar
-          onMenuClick={() => setSidebarOpen(true)}
-        />
+      <div
+        className={`transition-[padding] duration-200 ${
+          sidebarOpen ? 'lg:pl-64' : 'lg:pl-0'
+        }`}
+      >
+        <Navbar onMenuClick={() => setSidebarOpen((prev) => !prev)} />
 
         <main className="p-4 lg:p-6">
           <Outlet />
