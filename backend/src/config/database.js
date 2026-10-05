@@ -20,7 +20,6 @@ export const testDatabaseConnection = async () => {
 
   try {
     await client.query('SELECT 1');
-    console.log('PostgreSQL connection: OK');
   } finally {
     client.release();
   }

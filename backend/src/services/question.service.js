@@ -149,10 +149,6 @@ export const updateExistingQuestion = async ({
   id,
   ...data
 }) => {
-    console.log('UPDATE QUESTION:', {
-    id,
-    questionText: data.questionText
-  })
   const existingQuestion = await findQuestionById(id)
 
   if (!existingQuestion) {

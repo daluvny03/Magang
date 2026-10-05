@@ -86,7 +86,6 @@ export const findCategories = async ({
     pool.query(countQuery, values),
     pool.query(dataQuery, dataValues)
   ]);
-  console.log('CATEGORY RAW ROWS:', dataResult.rows);
   return {
     rows: dataResult.rows.map(mapCategory),
     total: countResult.rows[0].total
@@ -119,11 +118,6 @@ export const findCategoryByNameAndParent = async ({
   excludeId = null
 }) => {
 
-console.log({
-  name,
-  parentId,
-  excludeId
-});
   const query = `
     SELECT
       id,
@@ -148,7 +142,6 @@ console.log({
     parentId,
     excludeId
   ]);
-  console.log('findCategoryByNameAndParent query result:', rows[0]);
 
   return mapCategory(rows[0]);
 };

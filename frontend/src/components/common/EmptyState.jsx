@@ -1,23 +1,16 @@
-import { FolderOpen } from 'lucide-react'
+import { Inbox } from 'lucide-react'
 
-function EmptyState({
-  title = 'No data found',
-  description = 'There is no data to display.',
-}) {
+function EmptyState({ title = 'No data', message, description, action }) {
+  const text = message || description
+
   return (
-    <div className="flex min-h-48 flex-col items-center justify-center px-4 text-center">
-      <FolderOpen
-        size={32}
-        className="text-gray-400"
-      />
-
-      <h3 className="mt-3 font-medium text-gray-900">
-        {title}
-      </h3>
-
-      <p className="mt-1 text-sm text-gray-500">
-        {description}
-      </p>
+    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-500">
+        <Inbox size={22} />
+      </div>
+      <p className="text-sm font-semibold text-gray-900">{title}</p>
+      {text && <p className="max-w-sm text-xs text-gray-500">{text}</p>}
+      {action}
     </div>
   )
 }

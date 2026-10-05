@@ -1,16 +1,16 @@
-import { LoaderCircle } from 'lucide-react'
-
-function LoadingSpinner({ text = 'Loading...' }) {
+function LoadingSpinner({ size = 32, text }) {
   return (
-    <div className="flex min-h-48 items-center justify-center">
-      <div className="flex items-center gap-2 text-sm text-gray-500">
-        <LoaderCircle
-          size={20}
-          className="animate-spin"
-        />
-
-        <span>{text}</span>
-      </div>
+    <div
+      role="status"
+      className={`flex flex-col items-center justify-center gap-3 ${
+        text ? 'py-12' : ''
+      }`}
+    >
+      <div
+        style={{ width: size, height: size }}
+        className="animate-spin rounded-full border-2 border-primary-100 border-t-primary-500"
+      />
+      {text && <p className="text-xs text-gray-500">{text}</p>}
     </div>
   )
 }

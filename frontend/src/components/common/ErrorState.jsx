@@ -1,29 +1,18 @@
-import { AlertCircle, RefreshCcw } from 'lucide-react'
+import { AlertCircle, RotateCcw } from 'lucide-react'
+import Button from '../ui/Button'
 
-function ErrorState({
-  message = 'Failed to load data.',
-  onRetry,
-}) {
+function ErrorState({ message, onRetry }) {
   return (
-    <div className="flex min-h-48 flex-col items-center justify-center px-4 text-center">
-      <AlertCircle
-        size={32}
-        className="text-red-500"
-      />
-
-      <p className="mt-3 text-sm text-gray-600">
-        {message}
-      </p>
-
+    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-500">
+        <AlertCircle size={22} />
+      </div>
+      {message && <p className="max-w-sm text-xs text-gray-500">{message}</p>}
       {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-4 flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white"
-        >
-          <RefreshCcw size={16} />
-          Try Again
-        </button>
+        <Button variant="outline" size="sm" onClick={onRetry} className="mt-2">
+          <RotateCcw size={14} />
+          Try again
+        </Button>
       )}
     </div>
   )
