@@ -11,6 +11,9 @@ import PackageFilters from '../../../components/tryout-package/PackageFilters'
 import PackageFormModal from '../../../components/tryout-package/PackageFormModal'
 import PackageTable from '../../../components/tryout-package/PackageTable'
 import PackageMappingModal from '../../../components/tryout-package/PackageMappingModal'
+import Button from '../../../components/ui/Button'
+import Card from '../../../components/ui/Card'
+import { useDebounce } from '../../../hooks/useDebounce'
 
 import { useCategories } from '../../../hooks/useCategories'
 import { useSubscriptionTiers } from '../../../hooks/useSubscriptionTiers'
@@ -28,7 +31,8 @@ import {
 
 function TryoutPackagePage() {
   const [page, setPage] = useState(1)
-  const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const search = useDebounce(searchInput.trim())
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [formMode, setFormMode] = useState('create')
   const [selectedId, setSelectedId] = useState(null)
@@ -36,11 +40,10 @@ function TryoutPackagePage() {
   const [mappingType, setMappingType] = useState(null)
 
   const limit = 10
-  const params = useMemo(() => ({
-    page,
-    limit,
-    ...(search.trim() ? { search: search.trim() } : {}),
-  }), [page, search])
+  const params = useMemo(
+    () => ({ page, limit, ...(search ? { search } : {}) }),
+    [page, search]
+  )
 
   const {
     data: packageResponse,
@@ -191,28 +194,57 @@ function TryoutPackagePage() {
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tryout Packages</h1>
-          <p className="mt-1 text-sm text-gray-500">Manage tryout package configuration and assignments.</p>
+          <h1 className="text-xl font-semibold text-gray-900">Tryout Packages</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Manage tryout package configuration and assignments.
+          </p>
         </div>
-        <button type="button" onClick={handleOpenCreate} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700">
-          <Plus size={18} /> Add Package
-        </button>
+
+        <Button onClick={handleOpenCreate}>
+          <Plus size={18} />
+          Add Package
+        </Button>
       </div>
 
-      <PackageFilters
-        search={search}
-        onSearchChange={(event) => { setSearch(event.target.value); setPage(1) }}
-        onReset={() => { setSearch(''); setPage(1) }}
-      />
+      <Card className="space-y-4">
+        <PackageFilters
+          search={searchInput}
+          onSearchChange={(event) => {
+            setSearchInput(event.target.value)
+            setPage(1)
+          }}
+          onReset={() => {
+            setSearchInput('')
+            setPage(1)
+          }}
+        />
 
-      {packages.length === 0 ? (
-        <EmptyState title="No tryout packages found" message={search ? 'No packages match your search.' : 'There are no tryout packages yet.'} />
-      ) : (
-        <>
-          <PackageTable packages={packages} onView={handleOpenDetail} onEdit={handleOpenEdit} />
-          <Pagination page={meta.page} totalPages={meta.totalPages} onPageChange={setPage} />
-        </>
-      )}
+        {packages.length === 0 ? (
+          <EmptyState
+            title="No tryout packages found"
+            message={
+              searchInput
+                ? 'No packages match your search.'
+                : 'There are no tryout packages yet.'
+            }
+          />
+        ) : (
+          <>
+            <PackageTable
+              packages={packages}
+              onView={handleOpenDetail}
+              onEdit={handleOpenEdit}
+            />
+            <Pagination
+              page={meta.page}
+              totalPages={meta.totalPages}
+              total={meta.total}
+              limit={limit}
+              onPageChange={setPage}
+            />
+          </>
+        )}
+      </Card>
 
       <PackageFormModal
         isOpen={isFormOpen}

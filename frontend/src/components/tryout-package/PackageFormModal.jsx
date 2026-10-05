@@ -1,32 +1,53 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X } from 'lucide-react'
-import QuestionGroupSelector from './QuestionGroupSelector'
+import { Search } from 'lucide-react'
 
-const schema = z.object({
-  name: z.string().trim().min(1, 'Package name is required'),
-  slug: z.string().trim().min(1, 'Slug is required'),
-  description: z.string().optional(),
-  durationMinutes: z.coerce.number().int().min(1, 'Duration must be at least 1 minute'),
-  passingScore: z.coerce.number().min(0, 'Passing score must be at least 0'),
-  status: z.string().trim().min(1, 'Status is required'),
-  isFree: z.boolean(),
-  startAt: z.string().optional(),
-  endAt: z.string().optional(),
-  categoryIds: z.array(z.string()).min(1, 'Select at least one category'),
-  questionIds: z.array(z.string()).min(1, 'Select at least one question'),
-  subscriptionTierIds: z.array(z.string()).min(1, 'Select at least one subscription tier'),
-}).superRefine((data, ctx) => {
-  if (data.startAt && data.endAt && new Date(data.endAt) < new Date(data.startAt)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['endAt'],
-      message: 'End date must be after start date',
-    })
-  }
-})
+import Button from '../ui/Button'
+import CheckItem from '../ui/CheckItem'
+import FormField from '../ui/FormField'
+import Input from '../ui/Input'
+import Modal from '../ui/Modal'
+import SectionCard from '../ui/SectionCard'
+import Select from '../ui/Select'
+import Textarea from '../ui/Textarea'
+import QuestionGroupSelector from './QuestionGroupSelector'
+import { filterCategoriesByPackageSelection } from '../../utils/filterCategoriesByPackageSelection'
+
+const schema = z
+  .object({
+    name: z.string().trim().min(1, 'Package name is required'),
+    slug: z.string().trim().min(1, 'Slug is required'),
+    description: z.string().optional(),
+    durationMinutes: z.coerce
+      .number()
+      .int()
+      .min(1, 'Duration must be at least 1 minute'),
+    passingScore: z.coerce.number().min(0, 'Passing score must be at least 0'),
+    status: z.string().trim().min(1, 'Status is required'),
+    isFree: z.boolean(),
+    startAt: z.string().optional(),
+    endAt: z.string().optional(),
+    categoryIds: z.array(z.string()).min(1, 'Select at least one category'),
+    questionIds: z.array(z.string()).min(1, 'Select at least one question'),
+    subscriptionTierIds: z
+      .array(z.string())
+      .min(1, 'Select at least one subscription tier'),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.startAt &&
+      data.endAt &&
+      new Date(data.endAt) < new Date(data.startAt)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['endAt'],
+        message: 'End date must be after start date',
+      })
+    }
+  })
 
 const emptyValues = {
   name: '',
@@ -64,6 +85,8 @@ function PackageFormModal({
   onSubmit,
 }) {
   const isEdit = mode === 'edit'
+  const [categorySearch, setCategorySearch] = useState('')
+
   const {
     register,
     handleSubmit,
@@ -79,12 +102,28 @@ function PackageFormModal({
 
   const name = watch('name')
   const slug = watch('slug')
+  const status = watch('status')
+  const isFree = watch('isFree')
   const selectedQuestions = watch('questionIds') || []
   const selectedCategoryIds = watch('categoryIds') || []
-  const questionCategories = useMemo(() => filterCategoriesByPackageSelection(categories, selectedCategoryIds), [categories, selectedCategoryIds])
+
+  const questionCategories = useMemo(
+    () => filterCategoriesByPackageSelection(categories, selectedCategoryIds),
+    [categories, selectedCategoryIds]
+  )
+
+  const filteredCategories = useMemo(() => {
+    const keyword = categorySearch.trim().toLowerCase()
+    if (!keyword) return categories || []
+
+    return (categories || []).filter((category) =>
+      category.name?.toLowerCase().includes(keyword)
+    )
+  }, [categories, categorySearch])
 
   useEffect(() => {
     if (!isOpen) return
+    setCategorySearch('')
 
     if (isEdit && packageData) {
       reset({
@@ -97,194 +136,319 @@ function PackageFormModal({
         isFree: Boolean(packageData.isFree),
         startAt: toDateTimeLocal(packageData.startAt),
         endAt: toDateTimeLocal(packageData.endAt),
-        categoryIds: (packageData.categories || []).map((item) => String(item.id)),
-        questionIds: (packageData.questions || []).map((item) => String(item.id)),
-        subscriptionTierIds: (packageData.subscriptionTiers || []).map((item) => String(item.id)),
+        categoryIds: (packageData.categories || []).map((item) =>
+          String(item.id)
+        ),
+        questionIds: (packageData.questions || []).map((item) =>
+          String(item.id)
+        ),
+        subscriptionTierIds: (packageData.subscriptionTiers || []).map(
+          (item) => String(item.id)
+        ),
       })
     } else {
       reset(emptyValues)
     }
   }, [isOpen, isEdit, packageData, reset])
 
-  const generatedSlug = useMemo(() => (
-    name
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-  ), [name])
+  const generatedSlug = useMemo(
+    () =>
+      name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, ''),
+    [name]
+  )
 
-  if (!isOpen) return null
-
-  const submit = (values) => onSubmit(values)
+  const categoryError = errors.categoryIds?.message || serverErrors.categoryIds
+  const tierError =
+    errors.subscriptionTierIds?.message || serverErrors.subscriptionTierIds
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">{isEdit ? 'Edit Tryout Package' : 'Add Tryout Package'}</h2>
-            <p className="text-sm text-gray-500">Complete package information and minimum required assignments.</p>
+    <Modal
+      isOpen={isOpen}
+      onClose={isSubmitting ? undefined : onClose}
+      size="2xl"
+      title={isEdit ? 'Edit Tryout Package' : 'Add Tryout Package'}
+      description="Complete package information and minimum required assignments."
+      footer={
+        <>
+          <Button variant="soft" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="package-form"
+            disabled={isSubmitting || isReferenceLoading}
+          >
+            {isSubmitting
+              ? 'Saving...'
+              : isEdit
+                ? 'Update Package'
+                : 'Create Package'}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="package-form"
+        onSubmit={handleSubmit(onSubmit)}
+        className="space-y-5"
+      >
+        {serverErrors.general && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {serverErrors.general}
           </div>
-          <button type="button" disabled={isSubmitting} onClick={onClose} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 disabled:opacity-50">
-            <X size={20} />
-          </button>
-        </div>
+        )}
 
-        <form onSubmit={handleSubmit(submit)} className="space-y-6 p-6 text-left">
-          {serverErrors.general && <ErrorBox message={serverErrors.general} />}
+        {/* Basic Information */}
+        <SectionCard title="Basic Information">
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField
+              label="Package Name"
+              htmlFor="pkg-name"
+              error={errors.name?.message || serverErrors.name}
+            >
+              <Input
+                id="pkg-name"
+                {...register('name')}
+                error={errors.name || serverErrors.name}
+                placeholder="Tryout SKD Paket 1"
+              />
+            </FormField>
 
-          <section className="rounded-xl border border-gray-200 p-5">
-            <h3 className="font-semibold text-gray-900">Basic Information</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <Field label="Package Name" error={errors.name?.message || serverErrors.name}>
-                <input {...register('name')} className={inputClass} placeholder="Tryout SKD Paket 1" />
-              </Field>
-
-              <Field label="Slug" error={errors.slug?.message || serverErrors.slug}>
-                <div className="flex gap-2">
-                  <input {...register('slug')} className={inputClass} placeholder="tryout-skd-paket-1" />
-                  <button type="button" onClick={() => setValue('slug', generatedSlug, { shouldValidate: true })} className="rounded-lg border border-gray-300 px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">
-                    Generate
-                  </button>
-                </div>
-                {!slug && generatedSlug && <p className="mt-1 text-xs text-gray-400">Suggestion: {generatedSlug}</p>}
-              </Field>
-
-              <div className="md:col-span-2">
-                <Field label="Description" error={errors.description?.message || serverErrors.description}>
-                  <textarea {...register('description')} rows={3} className={inputClass} placeholder="Package description" />
-                </Field>
-              </div>
-
-              <Field label="Duration (minutes)" error={errors.durationMinutes?.message || serverErrors.durationMinutes}>
-                <input type="number" min="1" {...register('durationMinutes')} className={inputClass} />
-              </Field>
-
-              <Field label="Passing Score" error={errors.passingScore?.message || serverErrors.passingScore}>
-                <input type="number" min="0" step="0.01" {...register('passingScore')} className={inputClass} />
-              </Field>
-
-              <Field label="Status" error={errors.status?.message || serverErrors.status}>
-                <input type="hidden" {...register('status')} />
-                <div className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-sm capitalize text-gray-700">
-                  {watch('status') || 'draft'}
-                </div>
-                <p className="mt-1 text-xs text-gray-400">Status is changed through Publish/Unpublish on Package Detail.</p>
-              </Field>
-
-              <Field label="Access" error={serverErrors.isFree}>
-                <select
-                  value={watch('isFree') ? 'true' : 'false'}
-                  onChange={(event) => setValue('isFree', event.target.value === 'true', { shouldValidate: true })}
-                  className={inputClass}
+            <FormField
+              label="Slug"
+              htmlFor="pkg-slug"
+              error={errors.slug?.message || serverErrors.slug}
+            >
+              <div className="flex gap-2">
+                <Input
+                  id="pkg-slug"
+                  {...register('slug')}
+                  error={errors.slug || serverErrors.slug}
+                  placeholder="tryout-skd-paket-1"
+                />
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    setValue('slug', generatedSlug, { shouldValidate: true })
+                  }
                 >
-                  <option value="false">Paid</option>
-                  <option value="true">Free</option>
-                </select>
-              </Field>
-            </div>
-          </section>
+                  Generate
+                </Button>
+              </div>
+              {!slug && generatedSlug && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Suggestion: {generatedSlug}
+                </p>
+              )}
+            </FormField>
 
-          <section className="rounded-xl border border-gray-200 p-5">
-            <h3 className="font-semibold text-gray-900">Schedule</h3>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <Field label="Start At" error={errors.startAt?.message || serverErrors.startAt}>
-                <input type="datetime-local" {...register('startAt')} className={inputClass} />
-              </Field>
-              <Field label="End At" error={errors.endAt?.message || serverErrors.endAt}>
-                <input type="datetime-local" {...register('endAt')} className={inputClass} />
-              </Field>
-            </div>
-          </section>
+            <FormField
+              className="md:col-span-2"
+              label="Description"
+              htmlFor="pkg-description"
+              error={errors.description?.message || serverErrors.description}
+            >
+              <Textarea
+                id="pkg-description"
+                rows={3}
+                {...register('description')}
+                placeholder="Package description"
+              />
+            </FormField>
 
-          <SelectionSection title="Categories" error={errors.categoryIds?.message || serverErrors.categoryIds} loading={isReferenceLoading}>
-            {categories.map((category) => (
-              <CheckItem key={category.id} label={category.name} value={String(category.id)} register={register('categoryIds')} />
-            ))}
-          </SelectionSection>
+            <FormField
+              label="Duration (minutes)"
+              htmlFor="pkg-duration"
+              error={errors.durationMinutes?.message || serverErrors.durationMinutes}
+            >
+              <Input
+                id="pkg-duration"
+                type="number"
+                min="1"
+                {...register('durationMinutes')}
+                error={errors.durationMinutes}
+              />
+            </FormField>
 
-          <section className="rounded-xl border border-gray-200 p-5">
-            <h3 className="font-semibold text-gray-900">Questions ({selectedQuestions.length} selected) <span className="text-red-500">*</span></h3>
-            <div className="mt-4">
-              <Controller
-                name="questionIds"
-                control={control}
-                render={({ field }) => (
-                  <QuestionGroupSelector
-                    categories={questionCategories}
-                    selectedQuestionIds={field.value || []}
-                    initialQuestions={packageData?.questions || []}
-                    disabled={isSubmitting}
-                    onChange={(ids) => field.onChange(ids)}
-                  />
-                )}
+            <FormField
+              label="Passing Score"
+              htmlFor="pkg-passing"
+              error={errors.passingScore?.message || serverErrors.passingScore}
+            >
+              <Input
+                id="pkg-passing"
+                type="number"
+                min="0"
+                step="0.01"
+                {...register('passingScore')}
+                error={errors.passingScore}
+              />
+            </FormField>
+
+            <FormField
+              label="Status"
+              error={errors.status?.message || serverErrors.status}
+            >
+              <input type="hidden" {...register('status')} />
+              <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm capitalize text-gray-700">
+                {status || 'draft'}
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                Status is changed through Publish/Unpublish on Package Detail.
+              </p>
+            </FormField>
+
+            <FormField label="Access" htmlFor="pkg-access" error={serverErrors.isFree}>
+              <Select
+                id="pkg-access"
+                value={isFree ? 'true' : 'false'}
+                onChange={(event) =>
+                  setValue('isFree', event.target.value === 'true', {
+                    shouldValidate: true,
+                  })
+                }
+              >
+                <option value="false">Paid</option>
+                <option value="true">Free</option>
+              </Select>
+            </FormField>
+          </div>
+        </SectionCard>
+
+        {/* Schedule */}
+        <SectionCard title="Schedule">
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField
+              label="Start At"
+              htmlFor="pkg-start"
+              error={errors.startAt?.message || serverErrors.startAt}
+            >
+              <Input
+                id="pkg-start"
+                type="datetime-local"
+                {...register('startAt')}
+              />
+            </FormField>
+
+            <FormField
+              label="End At"
+              htmlFor="pkg-end"
+              error={errors.endAt?.message || serverErrors.endAt}
+            >
+              <Input
+                id="pkg-end"
+                type="datetime-local"
+                {...register('endAt')}
+                error={errors.endAt}
+              />
+            </FormField>
+          </div>
+        </SectionCard>
+
+        {/* Categories */}
+        <SectionCard
+          title="Categories"
+          required
+          description={`${selectedCategoryIds.length} categories selected`}
+          action={
+            <div className="relative w-full sm:w-72">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <Input
+                type="text"
+                value={categorySearch}
+                onChange={(event) => setCategorySearch(event.target.value)}
+                placeholder="Search category..."
+                className="pl-9"
               />
             </div>
-            {(errors.questionIds?.message || serverErrors.questions) && <p className="mt-2 text-xs text-red-600">{errors.questionIds?.message || serverErrors.questions}</p>}
-          </section>
+          }
+        >
+          {isReferenceLoading ? (
+            <p className="text-sm text-gray-500">Loading options...</p>
+          ) : (
+            <>
+              <div className="grid max-h-64 gap-2 overflow-y-auto md:grid-cols-2">
+                {filteredCategories.map((category) => (
+                  <CheckItem
+                    key={category.id}
+                    label={category.name}
+                    value={String(category.id)}
+                    {...register('categoryIds')}
+                  />
+                ))}
+              </div>
 
-          <SelectionSection title="Subscription Tiers" error={errors.subscriptionTierIds?.message || serverErrors.subscriptionTierIds} loading={isReferenceLoading}>
-            {tiers.map((tier) => (
-              <CheckItem key={tier.id} label={tier.name} meta={tier.price != null ? `Price: ${tier.price}` : ''} value={String(tier.id)} register={register('subscriptionTierIds')} />
-            ))}
-          </SelectionSection>
+              {filteredCategories.length === 0 && (
+                <p className="py-6 text-center text-sm text-gray-500">
+                  No categories found.
+                </p>
+              )}
+            </>
+          )}
 
-          <div className="flex justify-end gap-3 border-t border-gray-200 pt-5">
-            <button type="button" onClick={onClose} disabled={isSubmitting} className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
-            <button type="submit" disabled={isSubmitting || isReferenceLoading} className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
-              {isSubmitting ? 'Saving...' : isEdit ? 'Update Package' : 'Create Package'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          {categoryError && (
+            <p className="mt-2 text-xs text-red-500">{categoryError}</p>
+          )}
+        </SectionCard>
+
+        {/* Questions */}
+        <SectionCard
+          title={`Questions (${selectedQuestions.length} selected)`}
+          required
+        >
+          <Controller
+            name="questionIds"
+            control={control}
+            render={({ field }) => (
+              <QuestionGroupSelector
+                categories={questionCategories}
+                selectedQuestionIds={field.value || []}
+                initialQuestions={packageData?.questions || []}
+                disabled={isSubmitting}
+                onChange={(ids) => field.onChange(ids)}
+              />
+            )}
+          />
+
+          {(errors.questionIds?.message || serverErrors.questions) && (
+            <p className="mt-2 text-xs text-red-500">
+              {errors.questionIds?.message || serverErrors.questions}
+            </p>
+          )}
+        </SectionCard>
+
+        {/* Subscription Tiers */}
+        <SectionCard title="Subscription Tiers" required>
+          {isReferenceLoading ? (
+            <p className="text-sm text-gray-500">Loading options...</p>
+          ) : tiers.length === 0 ? (
+            <p className="text-sm text-gray-500">No data available.</p>
+          ) : (
+            <div className="grid max-h-64 gap-2 overflow-y-auto md:grid-cols-2">
+              {tiers.map((tier) => (
+                <CheckItem
+                  key={tier.id}
+                  label={tier.name}
+                  meta={tier.price != null ? `Price: ${tier.price}` : ''}
+                  value={String(tier.id)}
+                  {...register('subscriptionTierIds')}
+                />
+              ))}
+            </div>
+          )}
+
+          {tierError && <p className="mt-2 text-xs text-red-500">{tierError}</p>}
+        </SectionCard>
+      </form>
+    </Modal>
   )
-}
-
-const inputClass = 'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
-
-function Field({ label, error, children }) {
-  return <label className="block"><span className="mb-1.5 block text-sm font-medium text-gray-700">{label}</span>{children}{error && <span className="mt-1 block text-xs text-red-600">{error}</span>}</label>
-}
-
-function SelectionSection({ title, error, loading, children }) {
-  return (
-    <section className="rounded-xl border border-gray-200 p-5">
-      <h3 className="font-semibold text-gray-900">{title} <span className="text-red-500">*</span></h3>
-      {loading ? <p className="mt-3 text-sm text-gray-500">Loading options...</p> : <div className="mt-4 grid max-h-64 gap-2 overflow-y-auto md:grid-cols-2">{children}</div>}
-      {!loading && !children?.length && <p className="mt-3 text-sm text-gray-500">No data available.</p>}
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-    </section>
-  )
-}
-
-function CheckItem({ label, meta, value, register }) {
-  return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-3 hover:bg-gray-50">
-      <input type="checkbox" value={value} {...register} className="mt-1" />
-      <span className="min-w-0"><span className="block text-sm font-medium text-gray-800">{label}</span>{meta && <span className="mt-0.5 block text-xs text-gray-500">{meta}</span>}</span>
-    </label>
-  )
-}
-
-function ErrorBox({ message }) {
-  return <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{message}</div>
-}
-
-function filterCategoriesByPackageSelection(categories, selectedIds) {
-  const selected = new Set((selectedIds || []).map(String))
-  if (!selected.size) return []
-  const byId = new Map((categories || []).map(category => [String(category.id), category]))
-  return (categories || []).filter(category => {
-    let current = category
-    while (current) {
-      if (selected.has(String(current.id))) return true
-      const parentId = current.parentId ?? current.parent_id
-      current = parentId != null ? byId.get(String(parentId)) : null
-    }
-    return false
-  })
 }
 
 export default PackageFormModal

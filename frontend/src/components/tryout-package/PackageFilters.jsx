@@ -1,33 +1,29 @@
-import { Search, X } from 'lucide-react'
+import { RotateCcw, Search } from 'lucide-react'
+import Button from '../ui/Button'
+import Input from '../ui/Input'
 
 function PackageFilters({ search, onSearchChange, onReset }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="relative">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="relative w-full max-w-sm">
         <Search
-          size={18}
+          size={16}
           className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
         />
-        <input
+        <Input
           type="text"
           value={search}
           onChange={onSearchChange}
           placeholder="Search package..."
-          className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+          className="pl-9"
         />
       </div>
 
       {search && (
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={onReset}
-            className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-          >
-            <X size={16} />
-            Reset Filter
-          </button>
-        </div>
+        <Button variant="soft" onClick={onReset}>
+          <RotateCcw size={15} />
+          Reset
+        </Button>
       )}
     </div>
   )

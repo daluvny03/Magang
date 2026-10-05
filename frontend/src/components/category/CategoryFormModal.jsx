@@ -1,8 +1,14 @@
 import { useEffect } from 'react'
-import { X } from 'lucide-react'
 import { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+
+import Button from '../ui/Button'
+import FormField from '../ui/FormField'
+import Input from '../ui/Input'
+import Modal from '../ui/Modal'
+import Select from '../ui/Select'
+import Textarea from '../ui/Textarea'
 
 const categorySchema = z.object({
   name: z
@@ -24,9 +30,9 @@ function CategoryFormModal({
   mode,
   category,
   parentCategory,
-  parentCategories,
+  parentCategories = [],
   isSubmitting,
-  serverErrors,
+  serverErrors = {},
   onClose,
   onSubmit,
 }) {
@@ -48,6 +54,7 @@ function CategoryFormModal({
     if (!isOpen) {
       return
     }
+
     reset({
       name: category?.name || '',
       parentId:
@@ -60,161 +67,89 @@ function CategoryFormModal({
     })
   }, [isOpen, mode, category, parentCategory, reset])
 
-  if (!isOpen) {
-    return null
-  }
+  const isEdit = mode === 'edit'
+
+  const nameError = errors.name?.message || serverErrors.name
+  const parentError = serverErrors.parentId
+  const descriptionError =
+    errors.description?.message || serverErrors.description
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              {mode === 'edit'
-                ? 'Edit Category'
-                : 'Add Category'}
-            </h2>
+    <Modal
+      isOpen={isOpen}
+      onClose={isSubmitting ? undefined : onClose}
+      title={isEdit ? 'Edit Category' : 'Add Category'}
+      description={
+        isEdit ? 'Update category information.' : 'Create a new category.'
+      }
+      footer={
+        <>
+          <Button variant="soft" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
 
-            <p className="mt-1 text-sm text-gray-500">
-              {mode === 'edit'
-                ? 'Update category information.'
-                : 'Create a new category.'}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
+          <Button type="submit" form="category-form" disabled={isSubmitting}>
+            {isSubmitting
+              ? 'Saving...'
+              : isEdit
+                ? 'Update Category'
+                : 'Create Category'}
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="category-form"
+        onSubmit={handleSubmit(onSubmit)}
+        className="space-y-4"
+      >
+        <FormField label="Name" htmlFor="category-name" error={nameError}>
+          <Input
+            id="category-name"
+            {...register('name')}
+            error={nameError}
             disabled={isSubmitting}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
-          >
-            <X size={20} />
-          </button>
-        </div>
+            placeholder="Example: Nasionalisme"
+          />
+        </FormField>
 
-        <form
-          onSubmit={handleSubmit(onSubmit)}
-          className="space-y-5 p-6"
+        <FormField
+          label="Parent Category"
+          htmlFor="category-parent"
+          error={parentError}
         >
-          <div>
-            <label
-              htmlFor="category-name"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Name
-            </label>
+          <Select
+            id="category-parent"
+            {...register('parentId')}
+            error={parentError}
+            disabled={isSubmitting}
+          >
+            <option value="">No Parent</option>
 
-            <input
-              id="category-name"
-              {...register('name')}
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:border-gray-900"
-              placeholder="Example: Nasionalisme"
-            />
-
-            {errors.name && (
-              <p className="mt-1 text-sm text-red-500">
-                {errors.name.message}
-              </p>
-            )}
-
-            {serverErrors.name && (
-              <p className="mt-1 text-sm text-red-500">
-                {serverErrors.name}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="category-parent"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Parent Category
-            </label>
-
-            <select
-              id="category-parent"
-              {...register('parentId')}
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 outline-none focus:border-gray-900"
-            >
-              <option value="">
-                No Parent
+            {parentCategories.map((parent) => (
+              <option key={parent.id} value={parent.id}>
+                {parent.name}
               </option>
+            ))}
+          </Select>
+        </FormField>
 
-              {parentCategories.map((parent) => (
-                <option
-                  key={parent.id}
-                  value={parent.id}
-                >
-                  {parent.name}
-                </option>
-              ))}
-            </select>
-
-            {serverErrors.parentId && (
-              <p className="mt-1 text-sm text-red-500">
-                {serverErrors.parentId}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="category-description"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Description
-            </label>
-
-            <textarea
-              id="category-description"
-              rows={4}
-              {...register('description')}
-              disabled={isSubmitting}
-              className="w-full resize-none rounded-lg border border-gray-300 px-4 py-2.5 outline-none focus:border-gray-900"
-              placeholder="Category description"
-            />
-
-            {errors.description && (
-              <p className="mt-1 text-sm text-red-500">
-                {errors.description.message}
-              </p>
-            )}
-
-            {serverErrors.description && (
-              <p className="mt-1 text-sm text-red-500">
-                {serverErrors.description}
-              </p>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-3 border-t border-gray-200 pt-5">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSubmitting
-                ? 'Saving...'
-                : mode === 'edit'
-                  ? 'Update Category'
-                  : 'Create Category'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <FormField
+          label="Description"
+          htmlFor="category-description"
+          error={descriptionError}
+        >
+          <Textarea
+            id="category-description"
+            rows={4}
+            {...register('description')}
+            error={descriptionError}
+            disabled={isSubmitting}
+            placeholder="Category description"
+          />
+        </FormField>
+      </form>
+    </Modal>
   )
 }
 

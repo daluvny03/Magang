@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
@@ -7,7 +7,11 @@ const sizes = {
   md: 'max-w-lg',
   lg: 'max-w-2xl',
   xl: 'max-w-4xl',
+  '2xl': 'max-w-5xl',
 }
+
+// Tumpukan modal yang sedang terbuka (yang terakhir = paling atas)
+const openModals = []
 
 function Modal({
   isOpen,
@@ -18,22 +22,32 @@ function Modal({
   footer,
   children,
 }) {
+  const closeRef = useRef(onClose)
+
+  useEffect(() => {
+    closeRef.current = onClose
+  })
+
   useEffect(() => {
     if (!isOpen) return
 
-    const handleKey = (e) => {
-      if (e.key === 'Escape') onClose?.()
-    }
-
-    const previousOverflow = document.body.style.overflow
+    const token = Symbol('modal')
+    openModals.push(token)
     document.body.style.overflow = 'hidden'
+
+    const handleKey = (e) => {
+      if (e.key === 'Escape' && openModals[openModals.length - 1] === token) {
+        closeRef.current?.()
+      }
+    }
     document.addEventListener('keydown', handleKey)
 
     return () => {
-      document.body.style.overflow = previousOverflow
+      openModals.splice(openModals.indexOf(token), 1)
+      if (openModals.length === 0) document.body.style.overflow = ''
       document.removeEventListener('keydown', handleKey)
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) return null
 
