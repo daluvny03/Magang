@@ -8,6 +8,9 @@ import {
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { authorize } from '../middlewares/role.middleware.js';
 import { uploadExcel } from '../middlewares/upload.middleware.js';
+import {
+  questionImportUpload
+} from '../middlewares/question-import-upload.middleware.js';
 
 const router = Router();
 
@@ -15,7 +18,7 @@ router.post(
   '/preview',
   authenticate,
   authorize('admin'),
-  uploadExcel.single('file'),
+  questionImportUpload,
   previewQuestionImport
 );
 
@@ -23,7 +26,7 @@ router.post(
   '/',
   authenticate,
   authorize('admin'),
-  uploadExcel.single('file'),
+  questionImportUpload,
   importQuestions
 );
 

@@ -17,6 +17,13 @@ import {
   updateQuestionSchema,
   questionQuerySchema
 } from '../validators/question.validator.js';
+import {
+  questionImageUpload
+} from '../middlewares/question-upload.middleware.js';
+
+import {
+  parseQuestionForm
+} from '../middlewares/parse-question-form.middleware.js';
 
 const router = Router();
 
@@ -39,6 +46,8 @@ router.post(
   '/',
   authenticate,
   authorize('admin'),
+  questionImageUpload,
+  parseQuestionForm,
   validate(createQuestionSchema),
   createQuestion
 );
@@ -47,6 +56,8 @@ router.put(
   '/:id',
   authenticate,
   authorize('admin'),
+  questionImageUpload,
+  parseQuestionForm,
   validate(updateQuestionSchema),
   updateQuestion
 );

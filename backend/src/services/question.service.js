@@ -64,17 +64,20 @@ const validateCategory = async (categoryId) => {
 };
 
 const validateDuplicateQuestion = async ({
+  categoryId,
   questionText,
   excludeId = null
 }) => {
-  const existingQuestion = await findQuestionByText({
-    questionText,
-    excludeId
-  });
+  const existingQuestion =
+    await findQuestionByText({
+      categoryId,
+      questionText,
+      excludeId
+    });
 
   if (existingQuestion) {
     throw new AppError(
-      'A question with the same text already exists',
+      'A question with the same text already exists in this category',
       409,
       'QUESTION_ALREADY_EXISTS'
     );
@@ -123,7 +126,9 @@ export const getQuestionById = async (id) => {
   return question;
 };
 
-export const createNewQuestion = async (data) => {
+export const createNewQuestion = async (
+  data
+) => {
   const {
     categoryId,
     answerOptions,
@@ -138,8 +143,13 @@ export const createNewQuestion = async (data) => {
     correctAnswer
   });
 
+  validateOptionContent(
+    answerOptions
+  );
+
   await validateDuplicateQuestion({
-    questionText
+    questionText,
+    categoryId
   });
 
   return createQuestion(data);
@@ -166,7 +176,12 @@ export const updateExistingQuestion = async ({
     correctAnswer: data.correctAnswer
   })
 
+  validateOptionContent(
+    data.answerOptions
+    )
+
   await validateDuplicateQuestion({
+    categoryId: data.categoryId,
     questionText: data.questionText,
     excludeId: id
   })
@@ -195,6 +210,31 @@ export const removeQuestion = async (id) => {
       'Question could not be deleted',
       500,
       'QUESTION_DELETE_FAILED'
+    );
+  }
+};
+
+const validateOptionContent = (
+  answerOptions
+) => {
+  const emptyOption =
+    answerOptions.find((option) => {
+      const hasText =
+        typeof option.text === 'string' &&
+        option.text.trim().length > 0;
+
+      const hasImage =
+        typeof option.image === 'string' &&
+        option.image.trim().length > 0;
+
+      return !hasText && !hasImage;
+    });
+
+  if (emptyOption) {
+    throw new AppError(
+      `Answer option ${emptyOption.key} must contain text or image`,
+      422,
+      'EMPTY_ANSWER_OPTION'
     );
   }
 };

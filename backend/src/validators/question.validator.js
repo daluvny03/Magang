@@ -7,9 +7,13 @@ const answerOptionSchema = Joi.object({
 
   text: Joi.string()
     .trim()
-    .min(1)
     .max(1000)
-    .required()
+    .allow('')
+    .default(''),
+
+  image: Joi.string()
+    .allow(null, '')
+    .default(null)
 });
 
 const explanationSchema = Joi.object({
@@ -111,7 +115,25 @@ export const updateQuestionSchema = Joi.object({
     .required(),
 
   isActive: Joi.boolean()
-    .required()
+    .required(),
+
+  removeQuestionImage: Joi.boolean()
+  .default(false),
+
+removeOptionImageA: Joi.boolean()
+  .default(false),
+
+removeOptionImageB: Joi.boolean()
+  .default(false),
+
+removeOptionImageC: Joi.boolean()
+  .default(false),
+
+removeOptionImageD: Joi.boolean()
+  .default(false),
+
+removeOptionImageE: Joi.boolean()
+  .default(false)
 });
 
 export const questionQuerySchema = Joi.object({

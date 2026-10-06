@@ -8,6 +8,7 @@ const mapQuestion = (row) => {
     id: row.id,
     categoryId: row.category_id,
     questionText: row.question_text,
+    questionImage: row.question_image,
     answerOptions: row.answer_options,
     correctAnswer: row.correct_answer,
     explanation: row.explanation,
@@ -33,6 +34,7 @@ const baseSelect = `
     q.id,
     q.category_id,
     q.question_text,
+    q.question_image,
     q.answer_options,
     q.correct_answer,
     q.explanation,
@@ -149,6 +151,7 @@ export const findQuestionById = async (id) => {
 export const createQuestion = async ({
   categoryId,
   questionText,
+  questionImage,
   answerOptions,
   correctAnswer,
   explanation,
@@ -160,6 +163,7 @@ export const createQuestion = async ({
     INSERT INTO questions (
       category_id,
       question_text,
+      question_image,
       answer_options,
       correct_answer,
       explanation,
@@ -170,12 +174,13 @@ export const createQuestion = async ({
     VALUES (
       $1,
       $2,
-      $3::jsonb,
-      $4,
-      $5::jsonb,
-      $6,
+      $3,
+      $4::jsonb,
+      $5,
+      $6::jsonb,
       $7,
-      $8
+      $8,
+      $9
     )
     RETURNING id
   `;
@@ -183,6 +188,7 @@ export const createQuestion = async ({
   const { rows } = await pool.query(query, [
     categoryId,
     questionText,
+    questionImage ?? null,
     JSON.stringify(answerOptions),
     correctAnswer,
     JSON.stringify(explanation),
@@ -198,6 +204,7 @@ export const updateQuestion = async ({
   id,
   categoryId,
   questionText,
+  questionImage,
   answerOptions,
   correctAnswer,
   explanation,
@@ -210,20 +217,22 @@ export const updateQuestion = async ({
     SET
       category_id = $1,
       question_text = $2,
-      answer_options = $3::jsonb,
-      correct_answer = $4,
-      explanation = $5::jsonb,
-      score = $6,
-      difficulty = $7,
-      is_active = $8,
+      question_image = $3,
+      answer_options = $4::jsonb,
+      correct_answer = $5,
+      explanation = $6::jsonb,
+      score = $7,
+      difficulty = $8,
+      is_active = $9,
       updated_at = NOW()
-    WHERE id = $9
+    WHERE id = $10
     RETURNING id
   `;
 
   const { rows } = await pool.query(query, [
     categoryId,
     questionText,
+    questionImage ?? null,
     JSON.stringify(answerOptions),
     correctAnswer,
     JSON.stringify(explanation),
@@ -241,36 +250,62 @@ export const updateQuestion = async ({
 };
 
 export const findQuestionByText = async ({
+  categoryId,
   questionText,
   excludeId = null
 }) => {
-  const normalizedText = questionText.trim().toLowerCase()
-
-  const values = [normalizedText]
+  const values = [
+    Number(categoryId),
+    questionText
+  ];
 
   let query = `
-    SELECT id, question_text
+    SELECT
+      id,
+      category_id,
+      question_text
     FROM questions
-    WHERE LOWER(TRIM(question_text)) = $1
+    WHERE category_id = $1
+      AND LOWER(
+        REGEXP_REPLACE(
+          TRIM(question_text),
+          '\\s+',
+          ' ',
+          'g'
+        )
+      ) = LOWER(
+        REGEXP_REPLACE(
+          TRIM($2),
+          '\\s+',
+          ' ',
+          'g'
+        )
+      )
       AND is_active = true
-  `
+  `;
 
-  if (excludeId !== null && excludeId !== undefined) {
-    values.push(Number(excludeId))
+  if (
+    excludeId !== null &&
+    excludeId !== undefined
+  ) {
+    values.push(Number(excludeId));
 
     query += `
-      AND id <> $2
-    `
+      AND id <> $3
+    `;
   }
 
   query += `
     LIMIT 1
-  `
+  `;
 
-  const { rows } = await pool.query(query, values)
+  const { rows } = await pool.query(
+    query,
+    values
+  );
 
-  return rows[0] || null
-}
+  return rows[0] || null;
+};
 
 export const deactivateQuestion = async (id) => {
   const query = `
@@ -287,50 +322,72 @@ export const deactivateQuestion = async (id) => {
   return rows[0] || null;
 };
 
-export const findDuplicateQuestions = async (
-  questions
-) => {
-  if (!questions.length) {
-    return [];
-  }
+export const findDuplicateQuestions =
+  async (questions) => {
+    if (!questions.length) {
+      return [];
+    }
 
-  const conditions = [];
-  const values = [];
+    const conditions = [];
+    const values = [];
 
-  questions.forEach((question, index) => {
-    const questionIndex = index * 2;
+    questions.forEach(
+      (question, index) => {
+        const parameterIndex =
+          index * 2;
 
-    values.push(
-      question.categoryId,
-      question.questionText.trim()
+        values.push(
+          Number(question.categoryId),
+          question.questionText
+        );
+
+        conditions.push(`
+          (
+            category_id =
+              $${parameterIndex + 1}
+
+            AND LOWER(
+              REGEXP_REPLACE(
+                TRIM(question_text),
+                '\\s+',
+                ' ',
+                'g'
+              )
+            ) = LOWER(
+              REGEXP_REPLACE(
+                TRIM(
+                  $${parameterIndex + 2}
+                ),
+                '\\s+',
+                ' ',
+                'g'
+              )
+            )
+
+            AND is_active = true
+          )
+        `);
+      }
     );
 
-    conditions.push(`
-      (
-        category_id = $${questionIndex + 1}
-        AND LOWER(TRIM(question_text))
-          = LOWER(TRIM($${questionIndex + 2}))
-        AND is_active = true
-      )
-    `);
-  });
+    const query = `
+      SELECT
+        id,
+        category_id,
+        question_text
+      FROM questions
+      WHERE
+        ${conditions.join(' OR ')}
+    `;
 
-  const query = `
-    SELECT
-      id,
-      category_id,
-      question_text
-    FROM questions
-    WHERE ${conditions.join(' OR ')}
-  `;
+    const { rows } =
+      await pool.query(
+        query,
+        values
+      );
 
-  const { rows } = await pool.query(
-    query,
-    values
-  );
-
-  return rows;
-};
+    return rows;
+  };
 
 export const createQuestionsTransaction = async (
   questions
@@ -347,6 +404,7 @@ export const createQuestionsTransaction = async (
         INSERT INTO questions (
           category_id,
           question_text,
+          question_image,
           answer_options,
           correct_answer,
           explanation,
@@ -357,17 +415,19 @@ export const createQuestionsTransaction = async (
         VALUES (
           $1,
           $2,
-          $3::jsonb,
-          $4,
-          $5::jsonb,
-          $6,
+          $3,
+          $4::jsonb,
+          $5,
+          $6::jsonb,
           $7,
-          $8
+          $8,
+          $9
         )
         RETURNING
           id,
           category_id,
           question_text,
+          question_image,
           answer_options,
           correct_answer,
           explanation,
@@ -381,6 +441,7 @@ export const createQuestionsTransaction = async (
       const values = [
         question.categoryId,
         question.questionText,
+        question.questionImage ?? null,
         JSON.stringify(
           question.answerOptions
         ),

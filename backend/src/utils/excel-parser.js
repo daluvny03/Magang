@@ -14,12 +14,27 @@ const normalizeRow = (row) => {
   }, {});
 };
 
-export const parseExcelBuffer = (buffer) => {
-  const workbook = XLSX.read(buffer, {
-    type: 'buffer'
-  });
+export const parseExcelBuffer = (
+  buffer
+) => {
+  if (
+    !buffer ||
+    !Buffer.isBuffer(buffer)
+  ) {
+    throw new Error(
+      'Invalid Excel buffer'
+    );
+  }
 
-  const sheetName = workbook.SheetNames[0];
+  const workbook = XLSX.read(
+    buffer,
+    {
+      type: 'buffer'
+    }
+  );
+
+  const sheetName =
+    workbook.SheetNames[0];
 
   if (!sheetName) {
     throw new Error(
@@ -27,14 +42,20 @@ export const parseExcelBuffer = (buffer) => {
     );
   }
 
-  const worksheet = workbook.Sheets[sheetName];
+  const worksheet =
+    workbook.Sheets[sheetName];
 
-  const rawRows = XLSX.utils.sheet_to_json(worksheet, {
-    defval: '',
-    raw: false
-  });
+  const rawRows =
+    XLSX.utils.sheet_to_json(
+      worksheet,
+      {
+        defval: '',
+        raw: false
+      }
+    );
 
-  const rows = rawRows.map(normalizeRow);
+  const rows =
+    rawRows.map(normalizeRow);
 
   return {
     sheetName,

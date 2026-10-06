@@ -20,6 +20,16 @@ import {
 
 import { AppError } from '../utils/app-error.js';
 
+import {
+  buildZipImageMap,
+  validateRowImages
+} from '../utils/zip-image-validator.js';
+
+import {
+  persistQuestionImages,
+  cleanupPersistedImages
+} from '../utils/zip-image-persistence.js';
+
 const normalize = (value) => {
   if (
     value === undefined ||
@@ -104,28 +114,46 @@ const transformRow = async (row, rowNumber) => {
 
       questionText: normalize(row.question),
 
-      answerOptions: [
+      questionImageName:
+        normalize(row.question_image) || null,
+
+        answerOptions: [
         {
-          key: 'A',
-          text: normalize(row.option_a)
+            key: 'A',
+            text: normalize(row.option_a),
+            imageName:
+            normalize(row.option_a_image) ||
+            null
         },
         {
-          key: 'B',
-          text: normalize(row.option_b)
+            key: 'B',
+            text: normalize(row.option_b),
+            imageName:
+            normalize(row.option_b_image) ||
+            null
         },
         {
-          key: 'C',
-          text: normalize(row.option_c)
+            key: 'C',
+            text: normalize(row.option_c),
+            imageName:
+            normalize(row.option_c_image) ||
+            null
         },
         {
-          key: 'D',
-          text: normalize(row.option_d)
+            key: 'D',
+            text: normalize(row.option_d),
+            imageName:
+            normalize(row.option_d_image) ||
+            null
         },
         {
-          key: 'E',
-          text: normalize(row.option_e)
+            key: 'E',
+            text: normalize(row.option_e),
+            imageName:
+            normalize(row.option_e_image) ||
+            null
         }
-      ],
+        ],
 
       correctAnswer: normalize(
         row.correct_answer
@@ -152,7 +180,7 @@ const transformRow = async (row, rowNumber) => {
   };
 };
 
-export const previewExcelImport = async (buffer) => {
+export const previewExcelImport = async (buffer, zipEntries = []) => {
   const {
     sheetName,
     rows
@@ -173,6 +201,11 @@ export const previewExcelImport = async (buffer) => {
   const rowStatusMap =
     createRowStatusMap(rows);
 
+  const imageMap =
+  buildZipImageMap(
+    zipEntries
+  );
+
   // 1. Basic row validation
   rows.forEach((row, index) => {
     const rowNumber = index + 2;
@@ -190,6 +223,23 @@ export const previewExcelImport = async (buffer) => {
       );
     }
   });
+
+  rows.forEach((row, index) => {
+    const rowNumber =
+        index + 2;
+
+    const imageErrors =
+        validateRowImages({
+        row,
+        rowNumber,
+        imageMap
+        });
+
+    addRowErrors(
+        rowStatusMap,
+        imageErrors
+    );
+    });
 
   // 2. Duplicate dalam Excel
   const duplicateRows =
@@ -343,11 +393,27 @@ const detectDatabaseDuplicates = async (
 };
 
 export const importQuestionsFromExcel =
-  async (buffer) => {
+  async (
+    buffer,
+    zipEntries = []
+  ) => {
+    // ==============================
+    // 1. PARSE EXCEL & ZIP IMAGES
+    // ==============================
+
     const {
       sheetName,
       rows
     } = parseExcelBuffer(buffer);
+
+    const imageMap =
+      buildZipImageMap(
+        zipEntries
+      );
+
+    // ==============================
+    // 2. VALIDATE HEADERS
+    // ==============================
 
     const headerResult =
       validateHeaders(rows);
@@ -364,9 +430,13 @@ export const importQuestionsFromExcel =
     const rowStatusMap =
       createRowStatusMap(rows);
 
-    // 1. Basic validation
+    // ==============================
+    // 3. BASIC ROW VALIDATION
+    // ==============================
+
     rows.forEach((row, index) => {
-      const rowNumber = index + 2;
+      const rowNumber =
+        index + 2;
 
       const result =
         validateImportRow(
@@ -382,7 +452,31 @@ export const importQuestionsFromExcel =
       }
     });
 
-    // 2. Duplicate dalam Excel
+    // ==============================
+    // 4. IMAGE VALIDATION
+    // ==============================
+
+    rows.forEach((row, index) => {
+      const rowNumber =
+        index + 2;
+
+      const imageErrors =
+        validateRowImages({
+          row,
+          rowNumber,
+          imageMap
+        });
+
+      addRowErrors(
+        rowStatusMap,
+        imageErrors
+      );
+    });
+
+    // ==============================
+    // 5. DUPLICATE DALAM EXCEL
+    // ==============================
+
     const duplicateRows =
       detectDuplicateRows(rows);
 
@@ -391,7 +485,10 @@ export const importQuestionsFromExcel =
       duplicateRows
     );
 
-    // 3. Transform hanya row valid
+    // ==============================
+    // 6. TRANSFORM ROW
+    // ==============================
+
     const transformedRows = [];
 
     for (
@@ -399,11 +496,16 @@ export const importQuestionsFromExcel =
       index < rows.length;
       index++
     ) {
-      const rowNumber = index + 2;
+      const rowNumber =
+        index + 2;
 
       const rowStatus =
-        rowStatusMap.get(rowNumber);
+        rowStatusMap.get(
+          rowNumber
+        );
 
+      // Jangan transform row
+      // yang sudah invalid
       if (!rowStatus.valid) {
         continue;
       }
@@ -428,7 +530,10 @@ export const importQuestionsFromExcel =
       );
     }
 
-    // 4. Duplicate database
+    // ==============================
+    // 7. DUPLICATE DATABASE
+    // ==============================
+
     const databaseDuplicates =
       await detectDatabaseDuplicates(
         transformedRows
@@ -439,68 +544,51 @@ export const importQuestionsFromExcel =
       databaseDuplicates
     );
 
-    // 5. Ambil hanya row yang benar-benar valid
-    const validQuestions =
-      transformedRows
-        .filter((item) => {
+    // ==============================
+    // 8. BUILD VALIDATION RESULT
+    // ==============================
+
+    const preview =
+      rows.map(
+        (row, index) => {
+          const rowNumber =
+            index + 2;
+
           const rowStatus =
             rowStatusMap.get(
-              item.rowNumber
+              rowNumber
             );
 
-          return rowStatus.valid;
-        })
-        .map(
-          (item) => item.data
-        );
+          const transformedRow =
+            transformedRows.find(
+              (item) =>
+                item.rowNumber ===
+                rowNumber
+            );
 
-    // 6. Insert hanya kalau ada row valid
-    let insertedQuestions = [];
+          return {
+            rowNumber,
 
-    if (validQuestions.length > 0) {
-      insertedQuestions =
-        await createQuestionsTransaction(
-          validQuestions
-        );
-    }
+            valid:
+              rowStatus.valid,
 
-    // 7. Build error report
-    const preview = rows.map(
-      (row, index) => {
-        const rowNumber =
-          index + 2;
+            ...(rowStatus.errors
+              .length > 0
+              ? {
+                  errors:
+                    rowStatus.errors
+                }
+              : {}),
 
-        const rowStatus =
-          rowStatusMap.get(
-            rowNumber
-          );
-
-        const transformedRow =
-          transformedRows.find(
-            (item) =>
-              item.rowNumber ===
-              rowNumber
-          );
-
-        return {
-          rowNumber,
-          valid: rowStatus.valid,
-          ...(rowStatus.errors.length > 0
-            ? {
-                errors:
-                  rowStatus.errors
-              }
-            : {}),
-          ...(transformedRow &&
-          rowStatus.valid
-            ? {
-                data:
-                  transformedRow.data
-              }
-            : {})
-        };
-      }
-    );
+            ...(transformedRow
+              ? {
+                  data:
+                    transformedRow.data
+                }
+              : {})
+          };
+        }
+      );
 
     const validRows =
       preview.filter(
@@ -514,21 +602,132 @@ export const importQuestionsFromExcel =
 
     const errors =
       preview.flatMap(
-        (row) => row.errors || []
+        (row) =>
+          row.errors || []
       );
 
-    return {
-      sheetName,
-      totalRows: rows.length,
-      validRows,
-      invalidRows,
-      insertedRows:
-        insertedQuestions.length,
-      skippedRows:
-        invalidRows,
-      errors,
-      data: insertedQuestions
-    };
+    // ==============================
+    // 9. ALL-OR-NOTHING
+    // ==============================
+
+    if (invalidRows > 0) {
+      throw new AppError(
+        'Import contains invalid rows',
+        422,
+        'IMPORT_VALIDATION_FAILED',
+        errors
+      );
+    }
+
+    // Safety check
+    if (
+      transformedRows.length === 0
+    ) {
+      throw new AppError(
+        'No valid questions found',
+        422,
+        'NO_VALID_QUESTIONS'
+      );
+    }
+
+    // ==============================
+    // 10. PERSIST IMAGES
+    // ==============================
+
+    const persistedImagePaths = [];
+    const questionsToInsert = [];
+
+    try {
+      for (
+        const item of
+        transformedRows
+      ) {
+        const {
+          question,
+          savedPaths
+        } =
+          await persistQuestionImages({
+            question:
+              item.data,
+            imageMap
+          });
+
+        persistedImagePaths.push(
+          ...savedPaths
+        );
+
+        // questionImageName hanya
+        // dibutuhkan saat membaca ZIP.
+        // Jangan masukkan ke DB.
+        const {
+          questionImageName,
+          ...questionData
+        } = question;
+
+        // imageName juga hanya
+        // referensi file dalam ZIP.
+        const answerOptions =
+          questionData
+            .answerOptions
+            .map(
+              ({
+                imageName,
+                ...option
+              }) => option
+            );
+
+        questionsToInsert.push({
+          ...questionData,
+          answerOptions
+        });
+      }
+
+      // ==============================
+      // 11. DATABASE TRANSACTION
+      // ==============================
+
+      const insertedQuestions =
+        await createQuestionsTransaction(
+          questionsToInsert
+        );
+
+      // ==============================
+      // 12. SUCCESS
+      // ==============================
+
+      return {
+        sheetName,
+
+        totalRows:
+          rows.length,
+
+        validRows:
+          rows.length,
+
+        invalidRows: 0,
+
+        insertedRows:
+          insertedQuestions.length,
+
+        skippedRows: 0,
+
+        errors: [],
+
+        data:
+          insertedQuestions
+      };
+
+    } catch (error) {
+      // ==============================
+      // 13. ROLLBACK FILES
+      // ==============================
+
+      await cleanupPersistedImages(
+        persistedImagePaths
+      );
+
+      throw error;
+    }
   };
 
   const createRowStatusMap = (rows) => {

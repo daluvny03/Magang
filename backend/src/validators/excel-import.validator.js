@@ -9,14 +9,20 @@ export const REQUIRED_HEADERS = [
   'correct_answer',
   'explanation_summary',
   'score',
-  'difficulty'
+  'difficulty',
 ];
 
 export const OPTIONAL_HEADERS = [
   'subcategory',
   'chapter',
   'explanation_detail',
-  'explanation_tips'
+  'explanation_tips',
+    'question_image',
+    'option_a_image',
+    'option_b_image',
+    'option_c_image',
+    'option_d_image',
+    'option_e_image'
 ];
 
 export const ALL_HEADERS = [
@@ -190,36 +196,57 @@ export const validateImportRow = (row, rowNumber) => {
   };
 };
 
-export const detectDuplicateRows = (rows) => {
+export const detectDuplicateRows = (
+  rows
+) => {
   const seen = new Map();
   const duplicates = [];
 
-  rows.forEach((row, index) => {
-    const category = String(
-      row.category || ''
-    )
+  const normalize = (value) => {
+    return String(value ?? '')
       .trim()
-      .toLowerCase();
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+  };
 
-    const question = String(
-      row.question || ''
-    )
-      .trim()
-      .toLowerCase();
+  rows.forEach((row, index) => {
+    const rowNumber = index + 2;
+
+    const category = normalize(
+      row.category
+    );
+
+    const subcategory = normalize(
+      row.subcategory
+    );
+
+    const chapter = normalize(
+      row.chapter
+    );
+
+    const question = normalize(
+      row.question
+    );
 
     if (!category || !question) {
       return;
     }
 
-    const key = `${category}::${question}`;
+    const key = [
+      category,
+      subcategory,
+      chapter,
+      question
+    ].join('::');
 
     if (seen.has(key)) {
       duplicates.push({
-        row: index + 2,
-        duplicateOf: seen.get(key),
+        row: rowNumber,
+        duplicateOf:
+          seen.get(key),
         field: 'question',
         message:
-          'Duplicate question detected in Excel'
+          `Duplicate question detected in Excel. Same question exists at row ${seen.get(key)}`
       });
 
       return;
@@ -227,7 +254,7 @@ export const detectDuplicateRows = (rows) => {
 
     seen.set(
       key,
-      index + 2
+      rowNumber
     );
   });
 
