@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import Button from '../../../components/ui/Button'
+import Card from '../../../components/ui/Card'
+import { useDebounce } from '../../../hooks/useDebounce'
 
 import QuestionDeleteDialog from '../../../components/question/QuestionDeleteDialog'
 import QuestionFilters from '../../../components/question/QuestionFilters'
@@ -27,7 +30,8 @@ import QuestionImportModal from '../../../components/question-import/QuestionImp
 
 function QuestionPage() {
     const [page, setPage] = useState(1)
-    const [search, setSearch] = useState('')
+    const [searchInput, setSearchInput] = useState('')
+    const search = useDebounce(searchInput.trim())
     const [categoryId, setCategoryId] = useState('')
     const [isActive, setIsActive] = useState('true')
     const [isImportOpen, setIsImportOpen] = useState(false)
@@ -103,8 +107,15 @@ function QuestionPage() {
         createMutation.isPending ||
         updateMutation.isPending
 
-    const handleSearch = (event) => {
-        setSearch(event.target.value)
+    const handleSearch = (e) => {
+        setSearchInput(e.target.value)
+        setPage(1)
+    }
+
+    const handleResetFilter = () => {
+        setSearchInput('')
+        setCategoryId('')
+        setIsActive('true')
         setPage(1)
     }
 
@@ -144,37 +155,67 @@ function QuestionPage() {
         setPage(1)
     }
 
-    const handleResetFilter = () => {
-        setSearch('')
-        setCategoryId('')
-        setIsActive('true')
-        setPage(1)
-    }
-
     const normalizePayload = (values) => {
         return {
             categoryId: Number(values.categoryId),
 
-            questionText: values.questionText.trim(),
+            questionText:
+                values.questionText.trim(),
 
-            answerOptions: values.answerOptions.map(
-                (option) => ({
-                    key: option.key,
-                    text: option.text.trim(),
-                }),
-            ),
+            questionImage:
+                values.questionImage || null,
 
-            correctAnswer: values.correctAnswer,
+            questionImageFile:
+                values.questionImageFile || null,
+
+            removeQuestionImage:
+                Boolean(
+                    values.removeQuestionImage,
+                ),
+
+            answerOptions:
+                values.answerOptions.map(
+                    (option) => ({
+                        key: option.key,
+
+                        text:
+                            option.text?.trim() ||
+                            '',
+
+                        image:
+                            option.image || null,
+
+                        imageFile:
+                            option.imageFile ||
+                            null,
+
+                        removeImage:
+                            Boolean(
+                                option.removeImage,
+                            ),
+                    }),
+                ),
+
+            correctAnswer:
+                values.correctAnswer,
 
             explanation: {
-                summary: values.explanation.summary.trim(),
-                detail: values.explanation.detail.trim(),
-                tips: values.explanation.tips.trim(),
+                summary:
+                    values.explanation.summary.trim(),
+
+                detail:
+                    values.explanation.detail.trim(),
+
+                tips:
+                    values.explanation.tips.trim(),
             },
 
             score: Number(values.score),
 
-            difficulty: Number(values.difficulty),
+            difficulty: Number(
+                values.difficulty,
+            ),
+
             isActive: values.isActive,
         }
     }
@@ -305,80 +346,63 @@ function QuestionPage() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
             <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        Questions
-                    </h1>
-
+                    <h1 className="text-xl font-semibold text-gray-900">Questions</h1>
                     <p className="mt-1 text-sm text-gray-500">
                         Manage question bank and answer keys.
                     </p>
                 </div>
 
-                <button
-                    type="button"
-                    onClick={() => setIsImportOpen(true)}
-                    className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                    Import Excel
-                </button>
-
-                <button
-                    type="button"
-                    onClick={handleOpenCreate}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700"
-                >
-                    <Plus size={18} />
-                    Add Question
-                </button>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                        Import Questions
+                    </Button>
+                    <Button onClick={handleOpenCreate}>
+                        <Plus size={18} />
+                        Add Question
+                    </Button>
+                </div>
             </div>
 
-            {/* Filters */}
-            <QuestionFilters
-                search={search}
-                categoryId={categoryId}
-                isActive={isActive}
-                categories={categories}
-                onSearchChange={handleSearch}
-                onCategoryChange={handleCategoryChange}
-                onStatusChange={handleStatusChange}
-                onReset={handleResetFilter}
-            />
-
-            {/* Category loading */}
-            {isCategoriesLoading && (
-                <p className="text-sm text-gray-500">
-                    Loading categories...
-                </p>
-            )}
-
-            {/* Table */}
-            {questions.length === 0 ? (
-                <EmptyState
-                    title="No questions found"
-                    message={
-                        search || categoryId
-                            ? 'No questions match the selected filters.'
-                            : 'There are no questions yet.'
-                    }
+            <Card className="space-y-4">
+                <QuestionFilters
+                    search={searchInput}
+                    categoryId={categoryId}
+                    isActive={isActive}
+                    categories={categories}
+                    onSearchChange={handleSearch}
+                    onCategoryChange={handleCategoryChange}
+                    onStatusChange={handleStatusChange}
+                    onReset={handleResetFilter}
                 />
-            ) : (
-                <>
-                    <QuestionTable
-                        questions={questions}
-                        onEdit={handleOpenEdit}
-                        onDelete={handleOpenDelete}
-                    />
 
-                    <Pagination
-                        page={meta.page}
-                        totalPages={meta.totalPages}
-                        onPageChange={setPage}
+                {questions.length === 0 ? (
+                    <EmptyState
+                        title="No questions found"
+                        message={
+                            search || categoryId
+                                ? 'No questions match the selected filters.'
+                                : 'There are no questions yet.'
+                        }
                     />
-                </>
-            )}
+                ) : (
+                    <>
+                        <QuestionTable
+                            questions={questions}
+                            onEdit={handleOpenEdit}
+                            onDelete={handleOpenDelete}
+                        />
+                        <Pagination
+                            page={page}
+                            totalPages={meta.totalPages}
+                            total={meta.total}
+                            limit={limit}
+                            onPageChange={setPage}
+                        />
+                    </>
+                )}
+            </Card>
 
             {/* Create / Edit */}
             <QuestionFormModal
@@ -402,7 +426,13 @@ function QuestionPage() {
             />
             <QuestionImportModal
                 isOpen={isImportOpen}
-                onClose={() => setIsImportOpen(false)}
+                onClose={() =>
+                    setIsImportOpen(false)
+                }
+                onImportSuccess={() => {
+                    setPage(1)
+                    refetch()
+                }}
             />
         </div>
     )

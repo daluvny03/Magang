@@ -2,591 +2,362 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X } from 'lucide-react'
-import QuestionPreviewModal from './QuestionPreviewModal'
 
+import Alert from '../ui/Alert'
+import Button from '../ui/Button'
+import FormField from '../ui/FormField'
+import Input from '../ui/Input'
+import Modal from '../ui/Modal'
+import Select from '../ui/Select'
+import Textarea from '../ui/Textarea'
+import ImageInput from './ImageInput'
 import OptionEditor from './OptionEditor'
+import QuestionPreviewModal from './QuestionPreviewModal'
 import {
-    DEFAULT_ANSWER_OPTIONS,
-    DEFAULT_EXPLANATION,
-    DIFFICULTY_OPTIONS,
+  DEFAULT_ANSWER_OPTIONS,
+  DEFAULT_EXPLANATION,
+  DIFFICULTY_OPTIONS,
 } from '../../constants/question'
 
+const answerOptionSchema = z.object({
+  key: z.string(),
+  text: z.string(),
+  image: z.string().nullable().optional(),
+  imageFile: z.any().nullable().optional(),
+  removeImage: z.boolean().optional().default(false),
+})
+
+const required = (label) => z.string().trim().min(1, `${label} is required`)
+
 const questionSchema = z
-    .object({
-        categoryId: z.string().min(1, 'Category is required'),
+  .object({
+    categoryId: z.string().min(1, 'Category is required'),
+    questionText: required('Question'),
+    questionImage: z.string().nullable().optional(),
+    questionImageFile: z.any().nullable().optional(),
+    removeQuestionImage: z.boolean().optional().default(false),
+    answerOptions: z
+      .array(answerOptionSchema)
+      .length(5, 'Five answer options are required')
+      .refine(
+        (options) =>
+          options.every(
+            (o) =>
+              o.text.trim().length > 0 ||
+              (Boolean(o.image) && !o.removeImage) ||
+              Boolean(o.imageFile)
+          ),
+        { message: 'Each answer option must contain text or an image' }
+      ),
+    correctAnswer: z.string().min(1, 'Correct answer is required'),
+    explanation: z.object({
+      summary: required('Summary'),
+      detail: required('Detail'),
+      tips: required('Tips'),
+    }),
+    score: z.coerce
+      .number({ invalid_type_error: 'Score must be a number' })
+      .min(0, 'Score must be at least 0'),
+    difficulty: z.coerce
+      .number({ invalid_type_error: 'Difficulty is required' })
+      .int('Difficulty must be an integer')
+      .min(1, 'Invalid difficulty')
+      .max(3, 'Invalid difficulty'),
+    isActive: z.boolean(),
+  })
+  .superRefine((data, ctx) => {
+    // Opsi hanya-gambar diabaikan karena tidak punya teks untuk dibandingkan
+    const texts = data.answerOptions
+      .map((o) => o.text.trim().toLowerCase())
+      .filter(Boolean)
 
-        questionText: z
-            .string()
-            .trim()
-            .min(1, 'Question is required'),
+    if (texts.length !== new Set(texts).size) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['answerOptions'],
+        message: 'Answer options must not contain duplicates',
+      })
+    }
 
-        answerOptions: z
-            .array(
-                z.object({
-                    key: z.string(),
-                    text: z.string(),
-                }),
-            )
-            .length(5, 'Five answer options are required')
-            .refine(
-                (options) =>
-                    options.every(
-                        (option) => option.text.trim().length > 0,
-                    ),
-                {
-                    message: 'All answer options are required',
-                },
-            ),
+    if (
+      data.correctAnswer &&
+      !data.answerOptions.some((o) => o.key === data.correctAnswer)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['correctAnswer'],
+        message: 'Correct answer must match one of the answer options',
+      })
+    }
+  })
 
-        correctAnswer: z
-            .string()
-            .min(1, 'Correct answer is required'),
+const createEmptyOptions = () =>
+  DEFAULT_ANSWER_OPTIONS.map((o) => ({
+    ...o,
+    image: null,
+    imageFile: null,
+    removeImage: false,
+  }))
 
-        explanation: z.object({
-            summary: z
-                .string()
-                .trim()
-                .min(1, 'Summary is required'),
+const createEmptyValues = () => ({
+  categoryId: '',
+  questionText: '',
+  questionImage: null,
+  questionImageFile: null,
+  removeQuestionImage: false,
+  answerOptions: createEmptyOptions(),
+  correctAnswer: '',
+  explanation: { ...DEFAULT_EXPLANATION },
+  score: 0,
+  difficulty: 2,
+  isActive: true,
+})
 
-            detail: z
-                .string()
-                .trim()
-                .min(1, 'Detail is required'),
+const normalizeQuestionForForm = (q) => ({
+  categoryId: String(q.categoryId ?? q.category?.id ?? ''),
+  questionText: q.questionText || '',
+  questionImage: q.questionImage || null,
+  questionImageFile: null,
+  removeQuestionImage: false,
+  answerOptions: q.answerOptions?.length
+    ? q.answerOptions.map((o, i) => ({
+        key: o.key || String.fromCharCode(65 + i),
+        text: o.text || '',
+        image: o.image || null,
+        imageFile: null,
+        removeImage: false,
+      }))
+    : createEmptyOptions(),
+  correctAnswer: q.correctAnswer || '',
+  explanation: {
+    summary: q.explanation?.summary || '',
+    detail: q.explanation?.detail || '',
+    tips: q.explanation?.tips || '',
+  },
+  score: Number(q.score ?? 0),
+  difficulty: Number(q.difficulty ?? 2),
+  isActive: Boolean(q.isActive),
+})
 
-            tips: z
-                .string()
-                .trim()
-                .min(1, 'Tips is required'),
-        }),
-
-        score: z.preprocess(
-            (value) => {
-                if (value === '' || value === null || value === undefined) {
-                    return undefined
-                }
-
-                return Number(value)
-            },
-            z
-                .number({
-                    required_error: 'Score is required',
-                    invalid_type_error: 'Score must be a number',
-                })
-                .min(0, 'Score must be at least 0'),
-        ),
-
-        difficulty: z.coerce
-            .number({
-                invalid_type_error: 'Difficulty is required',
-            })
-            .int('Difficulty must be an integer')
-            .min(1, 'Invalid difficulty')
-            .max(3, 'Invalid difficulty'),
-
-        isActive: z.boolean(),
-    })
-    .superRefine((data, ctx) => {
-        // --------------------------------
-        // Duplicate answer option
-        // --------------------------------
-
-        const normalizedOptions = data.answerOptions
-            .map((option) => option.text.trim().toLowerCase())
-            .filter(Boolean)
-
-        const uniqueOptions = new Set(normalizedOptions)
-
-        if (normalizedOptions.length !== uniqueOptions.size) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['answerOptions'],
-                message: 'Answer options must not contain duplicates',
-            })
-        }
-
-        // --------------------------------
-        // Correct answer validation
-        // --------------------------------
-
-        const validAnswerKeys = data.answerOptions.map(
-            (option) => option.key,
-        )
-
-        if (
-            data.correctAnswer &&
-            !validAnswerKeys.includes(data.correctAnswer)
-        ) {
-            ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path: ['correctAnswer'],
-                message: 'Correct answer must match one of the answer options',
-            })
-        }
-    })
-
-const emptyValues = {
-    categoryId: '',
-    questionText: '',
-    answerOptions: DEFAULT_ANSWER_OPTIONS,
-    correctAnswer: '',
-    explanation: DEFAULT_EXPLANATION,
-    score: 0,
-    difficulty: 2,
-    isActive: true,
-}
+const EXPLANATION_FIELDS = [
+  ['summary', 'Summary', 3, 'Short explanation...'],
+  ['detail', 'Detail', 5, 'Detailed explanation...'],
+  ['tips', 'Tips', 3, 'Useful tips for answering...'],
+]
 
 function QuestionFormModal({
-    isOpen,
-    mode,
-    question,
-    categories,
-    isSubmitting,
-    serverErrors = {},
-    onClose,
-    onSubmit,
+  isOpen,
+  mode,
+  question,
+  categories = [],
+  isSubmitting = false,
+  serverErrors = {},
+  onClose,
+  onSubmit,
 }) {
-    const isEdit = mode === 'edit'
-    const [isPreviewOpen, setIsPreviewOpen] = useState(false)
-    const [previewValues, setPreviewValues] = useState(null)
+  const isEdit = mode === 'edit'
+  const [previewValues, setPreviewValues] = useState(null)
 
-    const {
-        register,
-        handleSubmit,
-        reset,
-        setValue,
-        watch,
-        trigger,
-        getValues,
-        formState: { errors },
-    } = useForm({
-        resolver: zodResolver(questionSchema),
-        defaultValues: emptyValues,
-    })
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    trigger,
+    getValues,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(questionSchema),
+    defaultValues: createEmptyValues(),
+  })
 
-    const answerOptions = watch('answerOptions')
-    const correctAnswer = watch('correctAnswer')
+  const answerOptions = watch('answerOptions')
+  const correctAnswer = watch('correctAnswer')
+  const questionImage = watch('questionImage')
+  const questionImageFile = watch('questionImageFile')
+  const removeQuestionImage = watch('removeQuestionImage')
 
-    useEffect(() => {
-        if (!isOpen) {
-            return
+  useEffect(() => {
+    if (!isOpen) return
+    reset(isEdit && question ? normalizeQuestionForForm(question) : createEmptyValues())
+    setPreviewValues(null)
+  }, [isOpen, isEdit, question, reset])
+
+  const set = (name, value, validate = false) =>
+    setValue(name, value, { shouldDirty: true, shouldValidate: validate })
+
+  const fieldError = (name) => errors[name]?.message || serverErrors[name]
+
+  const handlePreview = async () => {
+    if (!(await trigger(undefined, { shouldFocus: true }))) return
+    setPreviewValues(getValues())
+  }
+
+  return (
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={isSubmitting ? undefined : onClose}
+        size="xl"
+        title={isEdit ? 'Edit Question' : 'Add Question'}
+        description={
+          isEdit
+            ? 'Update question data and answer.'
+            : 'Create a new question and configure its answer.'
         }
-
-        if (isEdit && question) {
-            const normalizedOptions =
-                Array.isArray(question.answerOptions) &&
-                    question.answerOptions.length > 0
-                    ? question.answerOptions.map((option, index) => ({
-                        key:
-                            option.key ||
-                            String.fromCharCode(65 + index),
-                        text: option.text || '',
-                    }))
-                    : DEFAULT_ANSWER_OPTIONS
-
-            const normalizedExplanation = {
-                summary: question.explanation?.summary || '',
-                detail: question.explanation?.detail || '',
-                tips: question.explanation?.tips || '',
-            }
-
-            reset({
-                categoryId: String(
-                    question.categoryId ??
-                    question.category?.id ??
-                    '',
-                ),
-
-                questionText: question.questionText || '',
-
-                answerOptions: normalizedOptions,
-
-                correctAnswer: question.correctAnswer || '',
-
-                explanation: normalizedExplanation,
-
-                score: Number(question.score ?? 0),
-
-                difficulty: Number(
-                    question.difficulty ?? 2,
-                ),
-                isActive: Boolean(question.isActive),
-            })
-        } else {
-            reset({
-                ...emptyValues,
-                answerOptions: DEFAULT_ANSWER_OPTIONS.map(
-                    (option) => ({
-                        ...option,
-                    }),
-                ),
-                explanation: {
-                    ...DEFAULT_EXPLANATION,
-                },
-            })
+        footer={
+          <>
+            <Button variant="outline" onClick={handlePreview} disabled={isSubmitting}>
+              Preview
+            </Button>
+            <Button variant="soft" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" form="question-form" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : isEdit ? 'Update Question' : 'Create Question'}
+            </Button>
+          </>
         }
-    }, [isOpen, isEdit, question, reset])
+      >
+        <form
+          id="question-form"
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-5"
+        >
+          {serverErrors.general && <Alert tone="red">{serverErrors.general}</Alert>}
 
-    if (!isOpen) {
-        return null
-    }
+          <FormField label="Category" htmlFor="q-category" error={fieldError('categoryId')}>
+            <Select
+              id="q-category"
+              {...register('categoryId')}
+              error={fieldError('categoryId')}
+            >
+              <option value="">Select category</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </FormField>
 
-    const handleFormSubmit = (values) => {
-        onSubmit(values)
-    }
-
-    const handleOptionsChange = (options) => {
-        setValue('answerOptions', options, {
-            shouldDirty: true,
-            shouldValidate: true,
-        })
-    }
-
-    const handleCorrectAnswerChange = (value) => {
-        setValue('correctAnswer', value, {
-            shouldDirty: true,
-            shouldValidate: true,
-        })
-    }
-
-    const handlePreview = async () => {
-        const isValid = await trigger(undefined, {
-            shouldFocus: true,
-        })
-
-        if (!isValid) {
-            return
-        }
-
-        const values = getValues()
-
-        setPreviewValues(values)
-        setIsPreviewOpen(true)
-    }
-
-    const getServerError = (field) => serverErrors[field]
-
-    const questionError =
-        errors.questionText?.message ||
-        getServerError('questionText')
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-                    <div>
-                        <h2 className="text-lg font-semibold text-gray-900">
-                            {isEdit
-                                ? 'Edit Question'
-                                : 'Add Question'}
-                        </h2>
-
-                        <p className="mt-1 text-sm text-gray-500">
-                            {isEdit
-                                ? 'Update question data and answer.'
-                                : 'Create a new question and configure its answer.'}
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isSubmitting}
-                        className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-
-                <form
-                    onSubmit={handleSubmit(handleFormSubmit)}
-                    className="overflow-y-auto"
-                >
-                    <div className="space-y-6 p-6">
-                        {/* General Server Error */}
-                        {serverErrors.general && (
-                            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                                {serverErrors.general}
-                            </div>
-                        )}
-
-                        {/* Category */}
-                        <div>
-                            <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Category
-                            </label>
-
-                            <select
-                                {...register('categoryId')}
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                            >
-                                <option value="">
-                                    Select category
-                                </option>
-
-                                {categories.map((category) => (
-                                    <option
-                                        key={category.id}
-                                        value={category.id}
-                                    >
-                                        {category.name}
-                                    </option>
-                                ))}
-                            </select>
-
-                            {(errors.categoryId ||
-                                getServerError('categoryId')) && (
-                                    <p className="mt-1 text-sm text-red-600">
-                                        {errors.categoryId?.message ||
-                                            getServerError('categoryId')}
-                                    </p>
-                                )}
-                        </div>
-
-                        {/* Question */}
-                        <div>
-                            <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Question
-                            </label>
-
-                            <input
-                                {...register('questionText')}
-                                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${questionError
-                                        ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100'
-                                        : 'border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
-                                    }`}
-                            />
-
-                            {questionError && (
-                                <p className="mt-1 text-sm text-red-600">
-                                    {questionError}
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Options */}
-                        <div>
-                            <div className="mb-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Answer Options
-                                </label>
-
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Fill all options and select one correct answer.
-                                </p>
-                            </div>
-
-                            <OptionEditor
-                                options={answerOptions}
-                                correctAnswer={correctAnswer}
-                                onChange={handleOptionsChange}
-                                onCorrectChange={
-                                    handleCorrectAnswerChange
-                                }
-                                error={
-                                    errors.answerOptions?.message ||
-                                    getServerError('answerOptions')
-                                }
-                            />
-
-                            {(errors.correctAnswer ||
-                                getServerError('correctAnswer')) && (
-                                    <p className="mt-2 text-sm text-red-600">
-                                        {errors.correctAnswer?.message ||
-                                            getServerError('correctAnswer')}
-                                    </p>
-                                )}
-                        </div>
-
-                        {/* Explanation */}
-                        <div className="space-y-4">
-                            <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Explanation
-                                </label>
-
-                                <p className="text-xs text-gray-500">
-                                    Provide a summary, detailed explanation,
-                                    and useful tips for the question.
-                                </p>
-                            </div>
-
-                            {/* Summary */}
-                            <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Summary
-                                </label>
-
-                                <textarea
-                                    {...register('explanation.summary')}
-                                    rows={3}
-                                    placeholder="Short explanation..."
-                                    className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                />
-
-                                {(errors.explanation?.summary ||
-                                    getServerError(
-                                        'explanation.summary',
-                                    ) ||
-                                    getServerError('explanation')) && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {errors.explanation?.summary?.message ||
-                                                getServerError(
-                                                    'explanation.summary',
-                                                ) ||
-                                                getServerError('explanation')}
-                                        </p>
-                                    )}
-                            </div>
-
-                            {/* Detail */}
-                            <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Detail
-                                </label>
-
-                                <textarea
-                                    {...register('explanation.detail')}
-                                    rows={5}
-                                    placeholder="Detailed explanation..."
-                                    className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                />
-
-                                {errors.explanation?.detail && (
-                                    <p className="mt-1 text-sm text-red-600">
-                                        {errors.explanation.detail.message}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Tips */}
-                            <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Tips
-                                </label>
-
-                                <textarea
-                                    {...register('explanation.tips')}
-                                    rows={3}
-                                    placeholder="Useful tips for answering..."
-                                    className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                />
-
-                                {errors.explanation?.tips && (
-                                    <p className="mt-1 text-sm text-red-600">
-                                        {errors.explanation.tips.message}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Score + Difficulty */}
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            {/* Score */}
-                            <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Score
-                                </label>
-
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    {...register('score')}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                />
-
-                                {(errors.score ||
-                                    getServerError('score')) && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {errors.score?.message ||
-                                                getServerError('score')}
-                                        </p>
-                                    )}
-                            </div>
-
-                            {/* Difficulty */}
-                            <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Difficulty
-                                </label>
-
-                                <select
-                                    {...register('difficulty', {
-                                        valueAsNumber: true,
-                                    })}
-                                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                                >
-                                    {DIFFICULTY_OPTIONS.map((option) => (
-                                        <option
-                                            key={option.value}
-                                            value={option.value}
-                                        >
-                                            {option.label}
-                                        </option>
-                                    ))}
-                                </select>
-
-                                {(errors.difficulty ||
-                                    getServerError('difficulty')) && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {errors.difficulty?.message ||
-                                                getServerError('difficulty')}
-                                        </p>
-                                    )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
-                        <button
-                            type="button"
-                            onClick={handlePreview}
-                            disabled={isSubmitting}
-                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Preview
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={isSubmitting}
-                            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Cancel
-                        </button>
-
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            {isSubmitting
-                                ? 'Saving...'
-                                : isEdit
-                                    ? 'Update Question'
-                                    : 'Create Question'}
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <QuestionPreviewModal
-                isOpen={isPreviewOpen}
-                values={previewValues}
-                categoryName={
-                    categories.find(
-                        (category) =>
-                            String(category.id) ===
-                            String(previewValues?.categoryId),
-                    )?.name
-                }
-                onClose={() => setIsPreviewOpen(false)}
+          <FormField label="Question" htmlFor="q-text" error={fieldError('questionText')}>
+            <Input
+              id="q-text"
+              {...register('questionText')}
+              error={fieldError('questionText')}
+              placeholder="Enter question..."
             />
-        </div>
-    )
+            <div className="mt-3">
+              <ImageInput
+                label="Add Question Image"
+                previewClass="max-h-64"
+                image={questionImage}
+                file={questionImageFile}
+                removed={removeQuestionImage}
+                onPick={(file) => {
+                  set('questionImageFile', file, true)
+                  set('removeQuestionImage', false)
+                }}
+                onRemove={() => {
+                  set('questionImageFile', null, true)
+                  set('removeQuestionImage', Boolean(questionImage))
+                }}
+              />
+              <p className="mt-1 text-xs text-gray-400">
+                Optional. JPEG, PNG or WebP, maximum 5 MB.
+              </p>
+            </div>
+          </FormField>
+
+          <FormField
+            label="Answer Options"
+            error={fieldError('correctAnswer')}
+          >
+            <p className="mb-2 text-xs text-gray-400">
+              Each option must contain text, an image, or both. Select one correct answer.
+            </p>
+            <OptionEditor
+              options={answerOptions}
+              correctAnswer={correctAnswer}
+              onChange={(options) => set('answerOptions', options, true)}
+              onCorrectChange={(key) => set('correctAnswer', key, true)}
+              error={fieldError('answerOptions')}
+            />
+          </FormField>
+
+          <div className="space-y-4 rounded-xl border border-gray-200 p-4">
+            <p className="text-sm font-semibold text-gray-900">Explanation</p>
+
+            {EXPLANATION_FIELDS.map(([name, label, rows, placeholder]) => {
+              const error =
+                errors.explanation?.[name]?.message ||
+                serverErrors[`explanation.${name}`] ||
+                (name === 'summary' && serverErrors.explanation)
+
+              return (
+                <FormField key={name} label={label} htmlFor={`q-${name}`} error={error}>
+                  <Textarea
+                    id={`q-${name}`}
+                    rows={rows}
+                    {...register(`explanation.${name}`)}
+                    error={error}
+                    placeholder={placeholder}
+                  />
+                </FormField>
+              )
+            })}
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField label="Score" htmlFor="q-score" error={fieldError('score')}>
+              <Input
+                id="q-score"
+                type="number"
+                min="0"
+                step="0.01"
+                {...register('score')}
+                error={fieldError('score')}
+              />
+            </FormField>
+
+            <FormField label="Difficulty" htmlFor="q-difficulty" error={fieldError('difficulty')}>
+              <Select
+                id="q-difficulty"
+                {...register('difficulty')}
+                error={fieldError('difficulty')}
+              >
+                {DIFFICULTY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+            <input
+              type="checkbox"
+              {...register('isActive')}
+              className="h-4 w-4 accent-primary-500"
+            />
+            Active
+          </label>
+        </form>
+      </Modal>
+
+      <QuestionPreviewModal
+        isOpen={Boolean(previewValues)}
+        values={previewValues}
+        categoryName={
+          categories.find((c) => String(c.id) === String(previewValues?.categoryId))?.name
+        }
+        onClose={() => setPreviewValues(null)}
+      />
+    </>
+  )
 }
 
 export default QuestionFormModal

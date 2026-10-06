@@ -1,4 +1,7 @@
-import { Search, X } from 'lucide-react'
+import { RotateCcw, Search } from 'lucide-react'
+import Button from '../ui/Button'
+import Input from '../ui/Input'
+import Select from '../ui/Select'
 
 function QuestionFilters({
   search,
@@ -10,65 +13,47 @@ function QuestionFilters({
   onStatusChange,
   onReset,
 }) {
-  const hasFilter =
-    search ||
-    categoryId ||
-    isActive !== 'true'
+  const hasFilter = search || categoryId || isActive !== 'true'
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="relative md:col-span-2">
-          <Search
-            size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
+    <div className="flex flex-wrap items-center gap-3">
+      <div className="relative w-full sm:w-72">
+        <Search
+          size={16}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+        />
+        <Input
+          value={search}
+          onChange={onSearchChange}
+          placeholder="Search question..."
+          className="pl-9"
+        />
+      </div>
 
-          <input
-            type="text"
-            value={search}
-            onChange={onSearchChange}
-            placeholder="Search question..."
-            className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          />
-        </div>
-
-        <select
-          value={categoryId}
-          onChange={onCategoryChange}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        >
+      <div className="w-full sm:w-52">
+        <Select value={categoryId} onChange={onCategoryChange}>
           <option value="">All Categories</option>
-
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
             </option>
           ))}
-        </select>
+        </Select>
+      </div>
 
-        <select
-          value={isActive}
-          onChange={onStatusChange}
-          className="rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-        >
+      <div className="w-full sm:w-36">
+        <Select value={isActive} onChange={onStatusChange}>
           <option value="true">Active</option>
           <option value="false">Inactive</option>
           <option value="">All Status</option>
-        </select>
+        </Select>
       </div>
 
       {hasFilter && (
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={onReset}
-            className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-          >
-            <X size={16} />
-            Reset Filter
-          </button>
-        </div>
+        <Button variant="soft" onClick={onReset}>
+          <RotateCcw size={15} />
+          Reset
+        </Button>
       )}
     </div>
   )
