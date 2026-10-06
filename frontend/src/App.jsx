@@ -1,4 +1,4 @@
-import { Toaster } from 'sonner'
+import AppToaster from './components/ui/AppToaster'
 import AppRouter from './routes/AppRouter'
 
 function App() {
@@ -6,7 +6,7 @@ function App() {
     <>
       <AppRouter />
 
-      <Toaster position="top-right" />
+      <AppToaster />
     </>
   )
 }

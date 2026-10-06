@@ -1,13 +1,12 @@
-import CategoryTreeItem from './CategoryTreeItem'
+import CategoryCard from './CategoryCard'
 
 function CategoryTree({ categories, search, onEdit, onDelete, onAddChild }) {
   return (
-    <div className="divide-y divide-gray-50">
+    <div className="grid items-start gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
       {categories.map((category) => (
-        <CategoryTreeItem
+        <CategoryCard
           key={category.id}
           category={category}
-          level={0}
           search={search}
           onEdit={onEdit}
           onDelete={onDelete}

@@ -103,15 +103,6 @@ function CategoryFormModal({
         onSubmit={handleSubmit(onSubmit)}
         className="space-y-4"
       >
-        <FormField label="Name" htmlFor="category-name" error={nameError}>
-          <Input
-            id="category-name"
-            {...register('name')}
-            error={nameError}
-            disabled={isSubmitting}
-            placeholder="Example: Nasionalisme"
-          />
-        </FormField>
 
         <FormField
           label="Parent Category"
@@ -132,6 +123,16 @@ function CategoryFormModal({
               </option>
             ))}
           </Select>
+        </FormField>
+
+        <FormField label="Name" htmlFor="category-name" error={nameError}>
+          <Input
+            id="category-name"
+            {...register('name')}
+            error={nameError}
+            disabled={isSubmitting}
+            placeholder="Example: Nasionalisme"
+          />
         </FormField>
 
         <FormField

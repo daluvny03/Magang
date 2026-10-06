@@ -6,9 +6,7 @@ import {
 } from 'lucide-react'
 
 function getPageItems(page, totalPages) {
-  const sorted = [
-    ...new Set([1, totalPages, page - 1, page, page + 1]),
-  ]
+  const sorted = [...new Set([1, totalPages, page - 1, page, page + 1])]
     .filter((p) => p >= 1 && p <= totalPages)
     .sort((a, b) => a - b)
 
@@ -23,12 +21,16 @@ function getPageItems(page, totalPages) {
 const navButton =
   'flex h-8 w-8 items-center justify-center rounded-md text-gray-500 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
 
-function Pagination({ page, totalPages, onPageChange, total, limit }) {
+function Pagination({ page: rawPage, totalPages: rawTotalPages, onPageChange, total, limit }) {
+  // Paksa menjadi angka, karena API bisa mengirim string
+  const page = Number(rawPage) || 1
+  const totalPages = Number(rawTotalPages) || 0
+
   if (!totalPages) return null
 
-  const showInfo = total !== undefined && limit
+  const showInfo = total !== undefined && Boolean(limit)
   const from = (page - 1) * limit + 1
-  const to = Math.min(page * limit, total)
+  const to = Math.min(page * limit, Number(total))
 
   return (
     <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
