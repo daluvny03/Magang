@@ -14,6 +14,9 @@ import CategoryPage from '../pages/admin/categories/CategoryPage'
 import QuestionPage from '../pages/admin/questions/QuestionPage'
 import TryoutPackagePage from '../pages/admin/tryout-packages/TryoutPackagePage'
 import UserPage from '../pages/admin/users/UserPage'
+import UserLayout from '../user/layouts/UserLayout'
+import UserDashboardPage from '../user/pages/DashboardPage'
+import RoleBasedRedirect from '../components/common/RoleBasedRedirect'
 
 function AppRouter() {
     return (
@@ -62,25 +65,35 @@ function AppRouter() {
                     </Route>
                 </Route>
 
+                {/* User Protected */}
+                <Route element={<ProtectedRoute allowedRoles={['user']} />}>
+                    <Route path="/user" element={<UserLayout />}>
+                        <Route
+                            index
+                            element={
+                                <Navigate
+                                    to="/user/dashboard"
+                                    replace
+                                />
+                            }
+                        />
+
+                        <Route
+                            path="dashboard"
+                            element={<UserDashboardPage />}
+                        />
+                    </Route>
+                </Route>
+
                 {/* Default */}
                 <Route
                     path="/"
-                    element={
-                        <Navigate
-                            to="/admin/dashboard"
-                            replace
-                        />
-                    }
+                    element={<RoleBasedRedirect />}
                 />
 
                 <Route
                     path="*"
-                    element={
-                        <Navigate
-                            to="/admin/dashboard"
-                            replace
-                        />
-                    }
+                    element={<RoleBasedRedirect />}
                 />
             </Routes>
         </BrowserRouter>

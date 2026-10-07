@@ -21,15 +21,19 @@ const loginSchema = z.object({
 const SHOW_EXTRAS = true
 
 const backgroundStyle = {
-  backgroundColor: '#52C5D0',
+  backgroundColor: '#2f8d8f', // dasar teal gelap (sisi kanan)
+  backgroundRepeat: 'no-repeat',
   backgroundImage: [
-    'radial-gradient(ellipse 45% 55% at 5% 0%, #5ac7d1 0%, transparent 70%)',
-    'radial-gradient(ellipse 40% 45% at 45% 50%, #4fbcc6 0%, transparent 70%)',
-    'radial-gradient(ellipse 45% 40% at 25% 100%, #52bcc6 0%, transparent 70%)',
-    'radial-gradient(ellipse 35% 40% at 85% 85%, #4cb9c3 0%, transparent 70%)',
+    // cahaya terang pojok kiri atas
+    'radial-gradient(ellipse 60% 50% at 0% 0%, #60deea 0%, rgba(86,199,209,0) 100%)',
+    // pita terang di belakang kartu
+    'radial-gradient(ellipse 28% 70% at 35% 55%, #48aeb7 0%, rgba(79,189,199,0) 100%)',
+    // sorotan di belakang karakter
+    'radial-gradient(ellipse 28% 38% at 82% 85%, #50c8d2 0%, rgba(73,185,195,0) 100%)',
+    // area redup di kiri bawah
+    'radial-gradient(ellipse 35% 30% at 10% 100%, #58a9ac 0%, rgba(88,169,172,0) 100%)',
   ].join(','),
 }
-
 const inputClass =
   'h-10 w-full rounded-xl border bg-primary-50 px-3.5 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2'
 
@@ -76,8 +80,21 @@ function LoginPage() {
       const { accessToken, user } = response.data
       loginStore({ accessToken, user })
       toast.success('Login berhasil')
+      const defaultDestination =
+        user.role === 'admin'
+          ? '/admin/dashboard'
+          : '/user/dashboard'
 
-      const destination = location.state?.from?.pathname || '/admin/dashboard'
+      const fromPath = location.state?.from?.pathname
+
+      const canRedirectToFrom =
+        (user.role === 'admin' && fromPath?.startsWith('/admin')) ||
+        (user.role === 'user' && fromPath?.startsWith('/user'))
+
+      const destination = canRedirectToFrom
+        ? fromPath
+        : defaultDestination
+
       navigate(destination, { replace: true })
     } catch (error) {
       toast.error(
