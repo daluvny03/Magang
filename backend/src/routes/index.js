@@ -11,6 +11,7 @@ import subscriptionTierRoutes
   from './subscription-tier.routes.js';
   import userManagementRoutes
   from './user-management.routes.js';
+  import user from '../user/routes/index.js';
 
 const router = Router();
 
@@ -32,6 +33,10 @@ router.use('/tryout-packages', tryoutPackageRoutes);
 router.use(
   '/subscription-tiers',
   subscriptionTierRoutes
+);
+router.use(
+  '/user',
+  user
 );
 
 export default router;

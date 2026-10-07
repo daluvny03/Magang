@@ -16,7 +16,10 @@ import TryoutPackagePage from '../pages/admin/tryout-packages/TryoutPackagePage'
 import UserPage from '../pages/admin/users/UserPage'
 import UserLayout from '../user/layouts/UserLayout'
 import UserDashboardPage from '../user/pages/DashboardPage'
+import ProfilePage from '../user/pages/ProfilePage'
 import RoleBasedRedirect from '../components/common/RoleBasedRedirect'
+import TryoutPage from '../user/pages/TryoutPage'
+import TryoutDetailPage from '../user/pages/TryoutDetailPage'
 
 function AppRouter() {
     return (
@@ -81,6 +84,21 @@ function AppRouter() {
                         <Route
                             path="dashboard"
                             element={<UserDashboardPage />}
+                        />
+
+                        <Route
+                            path="tryouts"
+                            element={<TryoutPage />}
+                        />
+
+                        <Route
+                            path="tryouts/:tryoutId"
+                            element={<TryoutDetailPage />}
+                        />
+
+                        <Route
+                            path="profile"
+                            element={<ProfilePage />}
                         />
                     </Route>
                 </Route>
