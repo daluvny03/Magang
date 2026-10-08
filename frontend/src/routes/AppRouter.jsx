@@ -20,6 +20,7 @@ import ProfilePage from '../user/pages/ProfilePage'
 import RoleBasedRedirect from '../components/common/RoleBasedRedirect'
 import TryoutPage from '../user/pages/TryoutPage'
 import TryoutDetailPage from '../user/pages/TryoutDetailPage'
+import CatExamPage from '../user/pages/CatExamPage'
 
 function AppRouter() {
     return (
@@ -101,6 +102,11 @@ function AppRouter() {
                             element={<ProfilePage />}
                         />
                     </Route>
+
+                    <Route
+                        path="/user/cat/:attemptId"
+                        element={<CatExamPage />}
+                    />
                 </Route>
 
                 {/* Default */}

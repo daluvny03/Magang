@@ -13,3 +13,13 @@ export const getUserTryoutById = async (tryoutId) => {
 
   return response.data
 }
+
+export const startUserTryout = async (
+  tryoutId
+) => {
+  const response = await api.post(
+    `/user/tryouts/${tryoutId}/start`
+  )
+
+  return response.data
+}

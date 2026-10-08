@@ -6,6 +6,7 @@ import { authorize } from '../../middlewares/role.middleware.js';
 import tryoutRoutes from './tryouts.routes.js';
 import profileRoutes from './profile.routes.js';
 import subscriptionRoutes from './subscription.routes.js';
+import attemptsRoutes from './attempts.routes.js'
 
 const router = Router();
 
@@ -30,5 +31,9 @@ router.get('/health', (req, res) => {
 router.use('/tryouts', tryoutRoutes);
 router.use('/profile', profileRoutes);
 router.use('/subscription', subscriptionRoutes);
+router.use(
+  '/attempts',
+  attemptsRoutes
+)
 
 export default router;
