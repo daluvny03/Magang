@@ -12,6 +12,14 @@ import {
   finishAttempt,
 } from '../controllers/attempt-results.controller.js'
 
+import {
+    saveQuestionProgress,
+} from '../controllers/question-progress.controller.js'
+
+import {
+    updateDoubtful,
+} from '../controllers/doubtful.controller.js'
+
 const router = Router()
 
 router.get(
@@ -27,6 +35,16 @@ router.put(
 router.post(
   '/:attemptId/finish',
   finishAttempt
+)
+
+router.put(
+    '/:attemptId/question-progress',
+    saveQuestionProgress
+)
+
+router.put(
+    '/:attemptId/doubtful',
+    updateDoubtful
 )
 
 export default router

@@ -57,7 +57,14 @@ export const saveAttemptAnswer = async (
       message:
         'Answer saved successfully',
       data: {
-        answer,
+        answer: {
+          questionId:
+            answer.questionId,
+          selectedAnswer:
+            answer.selectedAnswer,
+          answeredAt:
+            answer.answeredAt,
+        },
       },
     })
   } catch (error) {

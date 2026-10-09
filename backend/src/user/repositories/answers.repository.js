@@ -159,3 +159,51 @@ export const upsertTryoutAnswer = async ({
 
   return mapAnswer(rows[0])
 }
+
+export const upsertDoubtfulStatus = async ({
+    attemptId,
+    questionId,
+    isDoubtful,
+}) => {
+    const result = await pool.query(
+        `
+        INSERT INTO tryout_answers (
+            attempt_id,
+            question_id,
+            selected_answer,
+            is_doubtful
+        )
+        VALUES (
+            $1,
+            $2,
+            NULL,
+            $3
+        )
+
+        ON CONFLICT (
+            attempt_id,
+            question_id
+        )
+        DO UPDATE SET
+            is_doubtful =
+                EXCLUDED.is_doubtful,
+
+            updated_at =
+                CURRENT_TIMESTAMP
+
+        RETURNING
+            question_id,
+            selected_answer,
+            is_doubtful,
+            answered_at,
+            updated_at
+        `,
+        [
+            attemptId,
+            questionId,
+            isDoubtful,
+        ]
+    )
+
+    return result.rows[0]
+}

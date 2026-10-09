@@ -19,6 +19,10 @@ const mapAttemptQuestion = (row) => ({
   answerOptions: sanitizeAnswerOptions(
     row.answer_options
   ),
+  selectedAnswer:
+    row.selected_answer || null,
+  isDoubtful:
+    row.is_doubtful ?? false,
 })
 
 export const findQuestionsByAttemptId = async ({
@@ -58,32 +62,41 @@ export const findQuestionsByAttemptId = async ({
   }
 
   const questionsResult = await pool.query(
-    `
-      SELECT
-        q.id,
-        q.question_text,
-        q.question_image,
-        q.answer_options,
-        tpq.question_order
+  `
+    SELECT
+      q.id,
+      q.question_text,
+      q.question_image,
+      q.answer_options,
+      tpq.question_order,
+      ta_answer.selected_answer,
 
-      FROM tryout_package_questions tpq
+    COALESCE(
+        ta_answer.is_doubtful,
+        FALSE
+    ) AS is_doubtful
 
-      INNER JOIN questions q
-        ON q.id = tpq.question_id
+    FROM tryout_package_questions tpq
 
-      WHERE tpq.tryout_package_id =
-        $1
+    INNER JOIN questions q
+      ON q.id = tpq.question_id
 
-        AND q.is_active = true
+    LEFT JOIN tryout_answers ta_answer
+      ON ta_answer.attempt_id = $2
+      AND ta_answer.question_id = q.id
 
-      ORDER BY
-        tpq.question_order ASC,
-        q.id ASC
-    `,
-    [
-      attempt.tryout_package_id,
-    ]
-  )
+    WHERE tpq.tryout_package_id = $1
+      AND q.is_active = true
+
+    ORDER BY
+      tpq.question_order ASC,
+      q.id ASC
+  `,
+  [
+    attempt.tryout_package_id,
+    attempt.id,
+  ]
+)
 
   return {
     attempt,
