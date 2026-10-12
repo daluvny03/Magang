@@ -45,6 +45,7 @@ function QuestionPanel({
                                 <button
                                     key={option.key}
                                     type="button"
+                                    disabled={isSavingAnswer}
                                     onClick={() =>
                                         onSelectAnswer(
                                             option.key

@@ -3,6 +3,8 @@ import {
   upsertTryoutAnswer,
 } from '../repositories/answers.repository.js'
 
+import { pool } from '../../config/database.js'
+
 const normalizeAnswerOptions = (options) => {
   if (!Array.isArray(options)) {
     return []
@@ -109,118 +111,145 @@ export const saveAttemptAnswerForUser = async ({
   questionId,
   selectedAnswer,
 }) => {
-  const question =
-    await findQuestionForAttempt({
-      userId,
-      attemptId,
-      questionId,
+  const client =
+    await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const question =
+      await findQuestionForAttempt({
+        userId,
+        attemptId,
+        questionId,
+        client,
+        lockAttempt: true,
+      })
+
+    if (!question) {
+      const error = new Error(
+        'Attempt or question not found'
+      )
+
+      error.statusCode = 404
+      error.code =
+        'ATTEMPT_QUESTION_NOT_FOUND'
+
+      throw error
+    }
+
+    if (
+      question.attempt_status ===
+      'completed'
+    ) {
+      const error = new Error(
+        'Attempt has already been completed'
+      )
+
+      error.statusCode = 409
+      error.code =
+        'ATTEMPT_COMPLETED'
+
+      throw error
+    }
+
+    const isExpired =
+      question.attempt_status ===
+        'expired' ||
+      new Date(
+        question.expires_at
+      ).getTime() <= Date.now()
+
+    if (isExpired) {
+      const error = new Error(
+        'Attempt has expired'
+      )
+
+      error.statusCode = 409
+      error.code =
+        'ATTEMPT_EXPIRED'
+
+      throw error
+    }
+
+    if (
+      question.attempt_status !==
+      'in_progress'
+    ) {
+      const error = new Error(
+        'Attempt is not in progress'
+      )
+
+      error.statusCode = 409
+      error.code =
+        'ATTEMPT_NOT_IN_PROGRESS'
+
+      throw error
+    }
+
+    const normalizedSelectedAnswer =
+      String(selectedAnswer || '')
+        .trim()
+        .toUpperCase()
+
+    const answerOptions =
+      normalizeAnswerOptions(
+        question.answer_options
+      )
+
+    const selectedOption =
+      answerOptions.find(
+        (option) =>
+          option.key ===
+          normalizedSelectedAnswer
+      )
+
+    if (!selectedOption) {
+      const error = new Error(
+        'Selected answer is invalid'
+      )
+
+      error.statusCode = 422
+      error.code =
+        'INVALID_SELECTED_ANSWER'
+
+      throw error
+    }
+
+    const {
+      isCorrect,
+      score,
+    } = calculateAnswerScore({
+      rootCategorySlug:
+        question.root_category_slug,
+      correctAnswer:
+        question.correct_answer,
+      questionScore:
+        question.question_score,
+      answerOptions,
+      selectedAnswer:
+        normalizedSelectedAnswer,
     })
 
-  if (!question) {
-    const error = new Error(
-      'Attempt or question not found'
-    )
+    const answer =
+      await upsertTryoutAnswer({
+        attemptId,
+        questionId,
+        selectedAnswer:
+          normalizedSelectedAnswer,
+        isCorrect,
+        score,
+        client,
+      })
 
-    error.statusCode = 404
-    error.code =
-      'ATTEMPT_QUESTION_NOT_FOUND'
+    await client.query('COMMIT')
 
-    throw error
-  }
-
-  if (question.attempt_status === 'completed') {
-    const error = new Error(
-      'Attempt has already been completed'
-    )
-
-    error.statusCode = 409
-    error.code = 'ATTEMPT_COMPLETED'
+    return answer
+  } catch (error) {
+    await client.query('ROLLBACK')
 
     throw error
+  } finally {
+    client.release()
   }
-
-  const isExpired =
-    question.attempt_status === 'expired' ||
-    new Date(
-      question.expires_at
-    ).getTime() <= Date.now()
-
-  if (isExpired) {
-    const error = new Error(
-      'Attempt has expired'
-    )
-
-    error.statusCode = 409
-    error.code = 'ATTEMPT_EXPIRED'
-
-    throw error
-  }
-
-  if (
-    question.attempt_status !==
-    'in_progress'
-  ) {
-    const error = new Error(
-      'Attempt is not in progress'
-    )
-
-    error.statusCode = 409
-    error.code =
-      'ATTEMPT_NOT_IN_PROGRESS'
-
-    throw error
-  }
-
-  const normalizedSelectedAnswer =
-    String(selectedAnswer || '')
-      .trim()
-      .toUpperCase()
-
-  const answerOptions =
-    normalizeAnswerOptions(
-      question.answer_options
-    )
-
-  const selectedOption =
-    answerOptions.find(
-      (option) =>
-        option.key ===
-        normalizedSelectedAnswer
-    )
-
-  if (!selectedOption) {
-    const error = new Error(
-      'Selected answer is invalid'
-    )
-
-    error.statusCode = 422
-    error.code =
-      'INVALID_SELECTED_ANSWER'
-
-    throw error
-  }
-
-  const {
-    isCorrect,
-    score,
-  } = calculateAnswerScore({
-    rootCategorySlug:
-      question.root_category_slug,
-    correctAnswer:
-      question.correct_answer,
-    questionScore:
-      question.question_score,
-    answerOptions,
-    selectedAnswer:
-      normalizedSelectedAnswer,
-  })
-
-  return upsertTryoutAnswer({
-    attemptId,
-    questionId,
-    selectedAnswer:
-      normalizedSelectedAnswer,
-    isCorrect,
-    score,
-  })
 }

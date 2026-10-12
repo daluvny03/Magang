@@ -120,6 +120,7 @@ function CatSidebar({
                                 <button
                                     key={question.id}
                                     type="button"
+                                    disabled={isSavingProgress}
                                     onClick={() =>
                                         onQuestionSelect(
                                             index

@@ -4,8 +4,15 @@ export const findTrackableQuestion = async ({
     attemptId,
     userId,
     questionId,
+    client = pool,
+    lockAttempt = false,
 }) => {
-    const result = await pool.query(
+    const lockClause =
+        lockAttempt
+            ? 'FOR UPDATE OF ta'
+            : ''
+
+    const result = await client.query(
         `
         SELECT
             ta.id AS attempt_id,
@@ -23,6 +30,8 @@ export const findTrackableQuestion = async ({
           AND ta.user_id = $2
 
         LIMIT 1
+
+        ${lockClause}
         `,
         [
             attemptId,
@@ -38,8 +47,9 @@ export const addQuestionTime = async ({
     attemptId,
     questionId,
     durationSeconds,
+    client = pool,
 }) => {
-    const result = await pool.query(
+    const result = await client.query(
         `
         INSERT INTO tryout_question_progress (
             attempt_id,

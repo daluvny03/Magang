@@ -3,6 +3,8 @@ import {
     upsertDoubtfulStatus,
 } from '../repositories/answers.repository.js'
 
+import { pool } from '../../config/database.js'
+
 const createServiceError = (
     message,
     statusCode,
@@ -50,7 +52,9 @@ export const updateDoubtfulStatus = async ({
         )
     }
 
-    if (typeof isDoubtful !== 'boolean') {
+    if (
+        typeof isDoubtful !== 'boolean'
+    ) {
         throw createServiceError(
             'Invalid doubtful status',
             400,
@@ -58,53 +62,93 @@ export const updateDoubtfulStatus = async ({
         )
     }
 
-    const question =
-        await findQuestionForAttempt({
-            attemptId: parsedAttemptId,
-            userId,
-            questionId:
-                parsedQuestionId,
-        })
+    const client =
+        await pool.connect()
 
-    if (!question) {
-        throw createServiceError(
-            'Attempt or question not found',
-            404,
-            'QUESTION_NOT_FOUND'
-        )
+    try {
+        await client.query('BEGIN')
+
+        const question =
+            await findQuestionForAttempt({
+                attemptId:
+                    parsedAttemptId,
+                userId,
+                questionId:
+                    parsedQuestionId,
+
+                client,
+                lockAttempt: true,
+            })
+
+        if (!question) {
+            throw createServiceError(
+                'Attempt or question not found',
+                404,
+                'ATTEMPT_QUESTION_NOT_FOUND'
+            )
+        }
+
+        if (
+            question.attempt_status ===
+            'completed'
+        ) {
+            throw createServiceError(
+                'Attempt has already been completed',
+                409,
+                'ATTEMPT_COMPLETED'
+            )
+        }
+
+        const expiresAt =
+            new Date(
+                question.expires_at
+            ).getTime()
+
+        const isExpired =
+            question.attempt_status ===
+                'expired' ||
+            (
+                Number.isFinite(expiresAt) &&
+                expiresAt <= Date.now()
+            )
+
+        if (isExpired) {
+            throw createServiceError(
+                'Attempt has expired',
+                409,
+                'ATTEMPT_EXPIRED'
+            )
+        }
+
+        if (
+            question.attempt_status !==
+            'in_progress'
+        ) {
+            throw createServiceError(
+                'Attempt is not in progress',
+                409,
+                'ATTEMPT_NOT_IN_PROGRESS'
+            )
+        }
+
+        const answer =
+            await upsertDoubtfulStatus({
+                attemptId:
+                    parsedAttemptId,
+                questionId:
+                    parsedQuestionId,
+                isDoubtful,
+                client,
+            })
+
+        await client.query('COMMIT')
+
+        return answer
+    } catch (error) {
+        await client.query('ROLLBACK')
+
+        throw error
+    } finally {
+        client.release()
     }
-
-    if (
-        question.attempt_status !==
-        'in_progress'
-    ) {
-        throw createServiceError(
-            'Attempt is no longer in progress',
-            409,
-            'ATTEMPT_NOT_IN_PROGRESS'
-        )
-    }
-
-    const expiresAt =
-        new Date(
-            question.expires_at
-        ).getTime()
-
-    if (
-        Number.isFinite(expiresAt) &&
-        expiresAt <= Date.now()
-    ) {
-        throw createServiceError(
-            'Attempt has expired',
-            409,
-            'ATTEMPT_EXPIRED'
-        )
-    }
-
-    return upsertDoubtfulStatus({
-        attemptId: parsedAttemptId,
-        questionId:
-            parsedQuestionId,
-        isDoubtful,
-    })
 }

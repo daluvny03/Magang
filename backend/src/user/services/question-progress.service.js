@@ -3,6 +3,8 @@ import {
     findTrackableQuestion,
 } from '../repositories/question-progress.repository.js'
 
+import { pool } from '../../config/database.js'
+
 const MAX_DURATION_SECONDS = 300
 
 const createServiceError = (
@@ -58,7 +60,8 @@ export const trackQuestionProgress = async ({
     if (
         !Number.isInteger(parsedDuration) ||
         parsedDuration < 0 ||
-        parsedDuration > MAX_DURATION_SECONDS
+        parsedDuration >
+            MAX_DURATION_SECONDS
     ) {
         throw createServiceError(
             'Invalid question duration',
@@ -67,50 +70,81 @@ export const trackQuestionProgress = async ({
         )
     }
 
-    const question =
-        await findTrackableQuestion({
-            attemptId: parsedAttemptId,
-            userId,
-            questionId: parsedQuestionId,
-        })
-
-    if (!question) {
-        throw createServiceError(
-            'Attempt or question not found',
-            404,
-            'QUESTION_NOT_FOUND'
-        )
-    }
-
-    if (question.status !== 'in_progress') {
-        throw createServiceError(
-            'Attempt is no longer in progress',
-            409,
-            'ATTEMPT_NOT_IN_PROGRESS'
-        )
-    }
-
-    const expiresAt =
-        new Date(question.expires_at).getTime()
-
-    if (
-        Number.isFinite(expiresAt) &&
-        expiresAt <= Date.now()
-    ) {
-        throw createServiceError(
-            'Attempt has expired',
-            409,
-            'ATTEMPT_EXPIRED'
-        )
-    }
-
     if (parsedDuration === 0) {
         return null
     }
 
-    return addQuestionTime({
-        attemptId: parsedAttemptId,
-        questionId: parsedQuestionId,
-        durationSeconds: parsedDuration,
-    })
+    const client =
+        await pool.connect()
+
+    try {
+        await client.query('BEGIN')
+
+        const question =
+            await findTrackableQuestion({
+                attemptId:
+                    parsedAttemptId,
+                userId,
+                questionId:
+                    parsedQuestionId,
+                client,
+                lockAttempt: true,
+            })
+
+        if (!question) {
+            throw createServiceError(
+                'Attempt or question not found',
+                404,
+                'QUESTION_NOT_FOUND'
+            )
+        }
+
+        if (
+            question.status !==
+            'in_progress'
+        ) {
+            throw createServiceError(
+                'Attempt is no longer in progress',
+                409,
+                'ATTEMPT_NOT_IN_PROGRESS'
+            )
+        }
+
+        const expiresAt =
+            new Date(
+                question.expires_at
+            ).getTime()
+
+        if (
+            Number.isFinite(expiresAt) &&
+            expiresAt <= Date.now()
+        ) {
+            throw createServiceError(
+                'Attempt has expired',
+                409,
+                'ATTEMPT_EXPIRED'
+            )
+        }
+
+        const progress =
+            await addQuestionTime({
+                attemptId:
+                    parsedAttemptId,
+                questionId:
+                    parsedQuestionId,
+                durationSeconds:
+                    parsedDuration,
+                client,
+            })
+
+        await client.query('COMMIT')
+
+        return progress
+    } catch (error) {
+        await client.query('ROLLBACK')
+
+        throw error
+    } finally {
+        client.release()
+    }
 }

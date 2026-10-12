@@ -20,8 +20,15 @@ export const findQuestionForAttempt = async ({
   attemptId,
   userId,
   questionId,
+  client = pool,
+  lockAttempt = false,
 }) => {
-  const { rows } = await pool.query(
+  const lockClause =
+    lockAttempt
+      ? 'FOR UPDATE OF ta'
+      : ''
+
+  const { rows } = await client.query(
     `
       WITH RECURSIVE category_tree AS (
         SELECT
@@ -78,6 +85,8 @@ export const findQuestionForAttempt = async ({
         AND q.id = $3
 
       LIMIT 1
+
+      ${lockClause}
     `,
     [
       attemptId,
@@ -95,8 +104,9 @@ export const upsertTryoutAnswer = async ({
   selectedAnswer,
   isCorrect,
   score,
+  client = pool,
 }) => {
-  const { rows } = await pool.query(
+  const { rows } = await client.query(
     `
       INSERT INTO tryout_answers (
         attempt_id,
@@ -164,8 +174,9 @@ export const upsertDoubtfulStatus = async ({
     attemptId,
     questionId,
     isDoubtful,
+    client = pool,
 }) => {
-    const result = await pool.query(
+    const result = await client.query(
         `
         INSERT INTO tryout_answers (
             attempt_id,

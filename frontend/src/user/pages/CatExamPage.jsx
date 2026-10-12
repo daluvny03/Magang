@@ -42,7 +42,11 @@ function CatExamPage() {
 
     const autoFinishTriggeredRef =
         useRef(false)
+
     const { attemptId } = useParams()
+
+    const questionPositionStorageKey =
+        `cat-current-question:${attemptId}`
 
     const [currentQuestionIndex, setCurrentQuestionIndex] =
         useState(0)
@@ -104,6 +108,62 @@ function CatExamPage() {
         questionStartedAtRef.current =
             Date.now()
     }, [currentQuestionId])
+
+    const hasRestoredQuestionRef =
+        useRef(false)
+
+    useEffect(() => {
+        if (
+            questions.length === 0 ||
+            hasRestoredQuestionRef.current
+        ) {
+            return
+        }
+
+        hasRestoredQuestionRef.current = true
+
+        const storedQuestionId =
+            sessionStorage.getItem(
+                questionPositionStorageKey
+            )
+
+        if (!storedQuestionId) {
+            return
+        }
+
+        const restoredIndex =
+            questions.findIndex(
+                (question) =>
+                    String(question.id) ===
+                    String(storedQuestionId)
+            )
+
+        if (restoredIndex >= 0) {
+            setCurrentQuestionIndex(
+                restoredIndex
+            )
+        }
+    }, [
+        questions,
+        questionPositionStorageKey,
+    ])
+
+    useEffect(() => {
+        if (
+            !currentQuestionId ||
+            !hasRestoredQuestionRef.current
+        ) {
+            return
+        }
+
+        sessionStorage.setItem(
+            questionPositionStorageKey,
+            String(currentQuestionId)
+        )
+    }, [
+        currentQuestionId,
+        questionPositionStorageKey,
+    ])
 
     const progressSavingRef =
         useRef(false)
@@ -188,12 +248,13 @@ function CatExamPage() {
                         attemptId,
                     })
 
-                    navigate(
-                        '/user/tryouts', //route untuk menampilkan daftar tryout yang sudah selesai seharusnya ke halaman hasil tryout
-                        {
-                            replace: true,
-                        }
+                    sessionStorage.removeItem(
+                        questionPositionStorageKey
                     )
+
+                    navigate('/user/tryouts', {
+                        replace: true,
+                    })
                 } catch (error) {
                     console.error(
                         'Failed to auto-finish attempt:',
@@ -526,6 +587,10 @@ function CatExamPage() {
                 await finishAttemptMutation.mutateAsync({
                     attemptId,
                 })
+
+                sessionStorage.removeItem(
+                    questionPositionStorageKey
+                )
 
                 setIsFinishModalOpen(false)
 
