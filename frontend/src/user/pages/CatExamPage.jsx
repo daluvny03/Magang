@@ -252,9 +252,10 @@ function CatExamPage() {
                         questionPositionStorageKey
                     )
 
-                    navigate('/user/tryouts', {
+                    navigate(`/user/results/${attemptId}`, {
                         replace: true,
                     })
+
                 } catch (error) {
                     console.error(
                         'Failed to auto-finish attempt:',
@@ -594,12 +595,10 @@ function CatExamPage() {
 
                 setIsFinishModalOpen(false)
 
-                navigate(
-                    '/user/tryouts',
-                    {
-                        replace: true,
-                    }
-                )
+                navigate(`/user/results/${attemptId}`, {
+                    replace: true,
+                })
+
             } catch (error) {
                 console.error(
                     'Failed to finish attempt:',

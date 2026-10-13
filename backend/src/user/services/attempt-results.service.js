@@ -1,6 +1,9 @@
 import {
   finishTryoutAttempt,
+  findCompletedAttemptResult,
+  findAttemptCategoryResults,
 } from '../repositories/attempt-results.repository.js'
+
 
 export const finishAttemptForUser = async ({
   userId,
@@ -52,5 +55,104 @@ export const finishAttemptForUser = async ({
     attempt: result.attempt,
     alreadyCompleted:
       result.reason === 'already_completed',
+  }
+}
+
+
+export const getAttemptResultForUser = async ({
+  userId,
+  attemptId,
+}) => {
+  const attempt =
+    await findCompletedAttemptResult({
+      userId,
+      attemptId,
+    })
+
+  if (!attempt) {
+    const error = new Error(
+      'Completed attempt not found'
+    )
+
+    error.statusCode = 404
+    error.code = 'ATTEMPT_RESULT_NOT_FOUND'
+
+    throw error
+  }
+
+  const categories =
+    await findAttemptCategoryResults({
+      userId,
+      attemptId,
+    })
+
+  const startedAt = new Date(
+    attempt.started_at
+  )
+
+  const completedAt = new Date(
+    attempt.completed_at
+  )
+
+  const expiresAt = attempt.expires_at
+    ? new Date(attempt.expires_at)
+    : null
+
+  const effectiveCompletedAt =
+    expiresAt && completedAt > expiresAt
+      ? expiresAt
+      : completedAt
+
+  const durationSeconds = Math.max(
+    0,
+    Math.floor(
+      (
+        effectiveCompletedAt.getTime() -
+        startedAt.getTime()
+      ) / 1000
+    )
+  )
+
+  const totalQuestions = Number(
+    attempt.total_questions
+  )
+
+  const correctAnswers = Number(
+    attempt.correct_answers
+  )
+
+  const wrongAnswers = Number(
+    attempt.wrong_answers
+  )
+
+  const unanswered = Number(
+    attempt.unanswered
+  )
+
+  return {
+    attempt: {
+      id: attempt.id,
+      tryoutId: attempt.tryout_package_id,
+      tryoutName: attempt.tryout_name,
+      attemptNumber: attempt.attempt_number,
+      status: attempt.status,
+      startedAt: attempt.started_at,
+      completedAt: attempt.completed_at,
+      durationSeconds,
+    },
+
+    summary: {
+      totalScore: Number(
+        attempt.total_score
+      ),
+      totalQuestions,
+      answered:
+        totalQuestions - unanswered,
+      correctAnswers,
+      wrongAnswers,
+      unanswered,
+    },
+
+    categories,
   }
 }

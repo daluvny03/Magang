@@ -237,3 +237,178 @@ export const finishTryoutAttempt = async ({
     client.release()
   }
 }
+
+export const findCompletedAttemptResult = async ({
+  attemptId,
+  userId,
+}) => {
+  const result = await pool.query(
+    `
+      SELECT
+        ta.id,
+        ta.tryout_package_id,
+        ta.attempt_number,
+        ta.status,
+        ta.started_at,
+        ta.completed_at,
+        ta.expires_at,
+        ta.total_score,
+        ta.correct_answers,
+        ta.wrong_answers,
+        ta.unanswered,
+        tp.name AS tryout_name,
+        tp.duration_minutes,
+
+        (
+          SELECT COUNT(*)::integer
+          FROM tryout_package_questions tpq
+          WHERE tpq.tryout_package_id =
+            ta.tryout_package_id
+        ) AS total_questions
+
+      FROM tryout_attempts ta
+
+      INNER JOIN tryout_packages tp
+        ON tp.id = ta.tryout_package_id
+
+      WHERE ta.id = $1
+        AND ta.user_id = $2
+        AND ta.status = 'completed'
+
+      LIMIT 1
+    `,
+    [attemptId, userId]
+  )
+
+  return result.rows[0] ?? null
+}
+
+
+export const findAttemptCategoryResults = async ({
+  attemptId,
+  userId,
+}) => {
+  const result = await pool.query(
+    `
+      WITH RECURSIVE category_tree AS (
+        SELECT
+          id,
+          parent_id,
+          name,
+          slug,
+          id AS root_id,
+          name AS root_name,
+          slug AS root_slug
+
+        FROM categories
+        WHERE parent_id IS NULL
+          AND slug IN ('twk', 'tiu', 'tkp')
+
+        UNION ALL
+
+        SELECT
+          c.id,
+          c.parent_id,
+          c.name,
+          c.slug,
+          ct.root_id,
+          ct.root_name,
+          ct.root_slug
+
+        FROM categories c
+
+        INNER JOIN category_tree ct
+          ON c.parent_id = ct.id
+      ),
+
+      category_stats AS (
+        SELECT
+          ct.root_id,
+          ct.root_name,
+          ct.root_slug,
+
+          COUNT(tpq.question_id)::integer
+            AS total_questions,
+
+          COUNT(ta_ans.selected_answer)::integer
+            AS answered,
+
+          COUNT(*) FILTER (
+            WHERE ta_ans.selected_answer IS NOT NULL
+              AND ta_ans.is_correct = true
+          )::integer AS correct_answers,
+
+          COUNT(*) FILTER (
+            WHERE ta_ans.selected_answer IS NOT NULL
+              AND ta_ans.is_correct = false
+          )::integer AS wrong_answers,
+
+          COALESCE(
+            SUM(ta_ans.score),
+            0
+          ) AS total_score
+
+        FROM tryout_attempts ta
+
+        INNER JOIN tryout_package_questions tpq
+          ON tpq.tryout_package_id =
+            ta.tryout_package_id
+
+        INNER JOIN questions q
+          ON q.id = tpq.question_id
+
+        INNER JOIN category_tree ct
+          ON ct.id = q.category_id
+
+        LEFT JOIN tryout_answers ta_ans
+          ON ta_ans.attempt_id = ta.id
+          AND ta_ans.question_id = q.id
+
+        WHERE ta.id = $1
+          AND ta.user_id = $2
+          AND ta.status = 'completed'
+
+        GROUP BY
+          ct.root_id,
+          ct.root_name,
+          ct.root_slug
+      )
+
+      SELECT
+        root_slug AS slug,
+        root_name AS name,
+        total_questions,
+        answered,
+        correct_answers,
+        wrong_answers,
+
+        (
+          total_questions - answered
+        )::integer AS unanswered,
+
+        total_score
+
+      FROM category_stats
+
+      ORDER BY
+        CASE root_slug
+          WHEN 'twk' THEN 1
+          WHEN 'tiu' THEN 2
+          WHEN 'tkp' THEN 3
+          ELSE 4
+        END
+    `,
+    [attemptId, userId]
+  )
+
+  return result.rows.map((row) => ({
+    slug: row.slug,
+    name: row.name,
+    totalQuestions: Number(row.total_questions),
+    answered: Number(row.answered),
+    correctAnswers: Number(row.correct_answers),
+    wrongAnswers: Number(row.wrong_answers),
+    unanswered: Number(row.unanswered),
+    totalScore: Number(row.total_score),
+  }))
+}

@@ -10,6 +10,7 @@ import {
 
 import {
   finishAttempt,
+  getAttemptResult,
 } from '../controllers/attempt-results.controller.js'
 
 import {
@@ -35,6 +36,11 @@ router.put(
 router.post(
   '/:attemptId/finish',
   finishAttempt
+)
+
+router.get(
+  '/:attemptId/result',
+  getAttemptResult
 )
 
 router.put(

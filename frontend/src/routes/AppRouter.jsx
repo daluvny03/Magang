@@ -21,6 +21,8 @@ import RoleBasedRedirect from '../components/common/RoleBasedRedirect'
 import TryoutPage from '../user/pages/TryoutPage'
 import TryoutDetailPage from '../user/pages/TryoutDetailPage'
 import CatExamPage from '../user/pages/CatExamPage'
+import ResultPage from '../user/pages/ResultPage'
+
 
 function AppRouter() {
     return (
@@ -96,6 +98,13 @@ function AppRouter() {
                             path="tryouts/:tryoutId"
                             element={<TryoutDetailPage />}
                         />
+
+
+                        <Route
+                            path="results/:attemptId"
+                            element={<ResultPage />}
+                        />
+
 
                         <Route
                             path="profile"
