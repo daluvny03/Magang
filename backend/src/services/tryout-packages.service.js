@@ -10,6 +10,15 @@ import {
 } from '../repositories/tryout-packages.repository.js';
 
 import {
+  validatePassingRules,
+  validatePassingScoreLimits,
+} from '../validators/passing-rules.validator.js'
+
+import {
+  getPackageQuestionScoreLimits,
+} from '../repositories/passing-rules.repository.js'
+
+import {
   replacePackageCategories,
   replacePackageQuestions,
   replacePackageSubscriptionTiers
@@ -174,78 +183,127 @@ export const getPackageById = async (id) => {
   };
 };
 
-export const createTryoutPackage = async (
-  payload
-) => {
-  const existingPackage =
-    await findPackageByName(payload.name);
+export const createTryoutPackage = async (payload) => {
+  console.log('PASSING RULES INPUT:', {
+    passingMode: payload.passingMode,
+    passingScore: payload.passingScore,
+    passingGrades: payload.passingGrades,
+  })
+
+  const passingRules = validatePassingRules({
+    passingMode: payload.passingMode,
+    passingScore: payload.passingScore,
+    passingGrades: payload.passingGrades,
+  })
+  console.log('VALIDATED PASSING RULES:', passingRules)
+
+  const validatedPayload = {
+    ...payload,
+    ...passingRules,
+  }
+
+  const existingPackage = await findPackageByName(
+    validatedPayload.name
+  )
 
   if (existingPackage) {
     throw new AppError(
       'Tryout package name is already registered',
       409,
       'PACKAGE_NAME_ALREADY_EXISTS'
-    );
+    )
   }
 
-  const client = await pool.connect();
+  const client = await pool.connect()
 
   try {
-    await client.query('BEGIN');
+    await client.query('BEGIN')
 
-    await validateRelations(client, payload);
+    await validateRelations(
+      client,
+      validatedPayload
+    )
+
+
+  if (validatedPayload.passingMode !== 'none') {
+    const scoreLimits =
+      await getPackageQuestionScoreLimits(
+        client,
+        validatedPayload.questions
+      )
+
+    validatePassingScoreLimits({
+      passingMode: validatedPayload.passingMode,
+      passingScore: validatedPayload.passingScore,
+      passingGrades: validatedPayload.passingGrades,
+      scoreLimits,
+    })
+  }
 
     const packageData = await createPackage(
       client,
-      payload
-    );
+      validatedPayload
+    )
 
     await replacePackageCategories(
       client,
       packageData.id,
-      payload.categoryIds
-    );
+      validatedPayload.categoryIds
+    )
 
     await replacePackageQuestions(
-        client,
-        packageData.id,
-        payload.questions
-    );
+      client,
+      packageData.id,
+      validatedPayload.questions
+    )
 
     await replacePackageSubscriptionTiers(
       client,
       packageData.id,
-      payload.subscriptionTierIds
-    );
+      validatedPayload.subscriptionTierIds
+    )
 
-    await client.query('COMMIT');
+    await client.query('COMMIT')
 
-    return getPackageById(packageData.id);
+    return getPackageById(packageData.id)
   } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
+    await client.query('ROLLBACK')
+    throw error
   } finally {
-    client.release();
+    client.release()
   }
-};
+}
 
 export const updateTryoutPackage = async (
   id,
   payload
 ) => {
-  const existingPackage =
-    await findPackageById(id);
+  const existingPackage = await findPackageById(
+    id
+  )
 
   if (!existingPackage) {
     throw new AppError(
       'Tryout package not found',
       404,
       'PACKAGE_NOT_FOUND'
-    );
+    )
   }
 
-  const duplicatePackage =
-    await findPackageByName(payload.name);
+  const passingRules = validatePassingRules({
+    passingMode: payload.passingMode,
+    passingScore: payload.passingScore,
+    passingGrades: payload.passingGrades,
+  })
+
+  const validatedPayload = {
+    ...payload,
+    ...passingRules,
+  }
+
+  const duplicatePackage = await findPackageByName(
+    validatedPayload.name
+  )
 
   if (
     duplicatePackage &&
@@ -255,50 +313,69 @@ export const updateTryoutPackage = async (
       'Tryout package name is already registered',
       409,
       'PACKAGE_NAME_ALREADY_EXISTS'
-    );
+    )
   }
 
-  const client = await pool.connect();
+  const client = await pool.connect()
 
   try {
-    await client.query('BEGIN');
+    await client.query('BEGIN')
 
-    await validateRelations(client, payload);
+    await validateRelations(
+      client,
+      validatedPayload
+    )
+
+  if (validatedPayload.passingMode !== 'none') {
+    const scoreLimits =
+      await getPackageQuestionScoreLimits(
+        client,
+        validatedPayload.questions
+      )
+
+    validatePassingScoreLimits({
+      passingMode: validatedPayload.passingMode,
+      passingScore: validatedPayload.passingScore,
+      passingGrades: validatedPayload.passingGrades,
+      scoreLimits,
+    })
+  }
 
     const packageData = await updatePackage(
       client,
       id,
-      payload
-    );
+      validatedPayload
+    )
 
     await replacePackageCategories(
       client,
       id,
-      payload.categoryIds
-    );
+      validatedPayload.categoryIds
+    )
 
     await replacePackageQuestions(
-        client,
-        id,
-        payload.questions
-    );
+      client,
+      id,
+      validatedPayload.questions
+    )
 
     await replacePackageSubscriptionTiers(
       client,
       id,
-      payload.subscriptionTierIds
-    );
+      validatedPayload.subscriptionTierIds
+    )
 
-    await client.query('COMMIT');
+    await client.query('COMMIT')
 
-    return getPackageById(packageData.id);
+    return getPackageById(packageData.id)
   } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
+    await client.query('ROLLBACK')
+    throw error
   } finally {
-    client.release();
+    client.release()
   }
-};
+}
+
 
 export const deleteTryoutPackage = async (
   id
@@ -510,53 +587,49 @@ const validateRelations = async (
   }
 };
 
-export const updatePackageCategories = async (
-  id,
-  categoryIds
-) => {
-  const packageData = await findPackageById(id);
-
-  if (!packageData) {
-    throw new AppError(
-      'Tryout package not found',
-      404,
-      'PACKAGE_NOT_FOUND'
-    );
-  }
-
+export const updatePackageCategories = async (id, categoryIds = []) => {
   const client = await pool.connect();
-
   try {
     await client.query('BEGIN');
 
-    const categories = await getCategories(
-      client,
-      categoryIds
+    const { rows } = await client.query(
+      'SELECT id FROM tryout_packages WHERE id = $1 FOR UPDATE',
+      [id]
+    );
+    if (!rows.length) {
+      throw new AppError('Tryout package not found', 404, 'PACKAGE_NOT_FOUND');
+    }
+
+    const categories = await getCategories(client, categoryIds);
+    if (categories.length !== categoryIds.length) {
+      const existingIds = new Set(categories.map((item) => String(item.id)));
+      const missingId = categoryIds.find((catId) => !existingIds.has(String(catId)));
+      throw new AppError(`Category with id ${missingId} was not found`, 404, 'CATEGORY_NOT_FOUND');
+    }
+
+    const allowedCategoryIds = await getDescendantCategoryIds(client, categoryIds);
+    const categorySet = new Set(allowedCategoryIds.map(String));
+
+    const { rows: questions } = await client.query(
+      `SELECT q.id, q.category_id
+       FROM tryout_package_questions tpq
+       JOIN questions q ON q.id = tpq.question_id
+       WHERE tpq.tryout_package_id = $1`,
+      [id]
     );
 
-    if (categories.length !== categoryIds.length) {
-      const existingIds = new Set(
-        categories.map((item) => item.id)
-      );
-
-      const missingId = categoryIds.find(
-        (categoryId) =>
-          !existingIds.has(categoryId)
-      );
-
+    const invalidQuestion = questions.find(
+      (q) => !categorySet.has(String(q.category_id))
+    );
+    if (invalidQuestion) {
       throw new AppError(
-        `Category with id ${missingId} was not found`,
-        404,
-        'CATEGORY_NOT_FOUND'
+        `Question with id ${invalidQuestion.id} does not belong to the selected package categories`,
+        422,
+        'QUESTION_CATEGORY_MISMATCH'
       );
     }
 
-    await replacePackageCategories(
-      client,
-      id,
-      categoryIds
-    );
-
+    await replacePackageCategories(client, id, categoryIds);
     await client.query('COMMIT');
 
     return getPackageById(id);
@@ -669,6 +742,23 @@ export const updatePackageQuestions = async (
             question.category_id
           )
       );
+
+    if (packageData.passingMode !== 'none') {
+      const scoreLimits =
+        await getPackageQuestionScoreLimits(
+          client,
+          questions
+        )
+
+      validatePassingScoreLimits({
+        passingMode: packageData.passingMode,
+        passingScore: packageData.passingScore == null
+          ? null
+          : Number(packageData.passingScore),
+        passingGrades: packageData.passingGrades,
+        scoreLimits,
+      })
+    }  
 
     if (invalidQuestion) {
       throw new AppError(

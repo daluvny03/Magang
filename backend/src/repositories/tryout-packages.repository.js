@@ -10,15 +10,17 @@ const mapPackage = (row) => {
     durationMinutes: row.duration_minutes,
     questionCount: row.question_count,
     passingScore: row.passing_score,
+    passingMode: row.passing_mode,
+    passingGrades: row.passing_grades,
     status: row.status,
     isFree: row.is_free,
     startAt: row.start_at,
     endAt: row.end_at,
     createdBy: row.created_by,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
-  });
-};
+    updatedAt: row.updated_at,
+  })
+}
 
 export const findPackages = async ({
   page = 1,
@@ -193,15 +195,17 @@ export const createPackage = async (
     description,
     durationMinutes,
     passingScore,
+    passingMode,
+    passingGrades,
     status,
     isFree,
     startAt,
     endAt,
     questions,
-    createdBy
+    createdBy,
   }
 ) => {
-  const questionCount = questions.length;
+  const questionCount = questions.length
 
   const { rows } = await client.query(
     `
@@ -212,6 +216,8 @@ export const createPackage = async (
         duration_minutes,
         question_count,
         passing_score,
+        passing_mode,
+        passing_grades,
         status,
         is_free,
         start_at,
@@ -219,17 +225,9 @@ export const createPackage = async (
         created_by
       )
       VALUES (
-        $1,
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        $7,
-        $8,
-        $9,
-        $10,
-        $11
+        $1, $2, $3, $4, $5,
+        $6, $7, $8::jsonb, $9, $10,
+        $11, $12, $13
       )
       RETURNING *
     `,
@@ -240,16 +238,20 @@ export const createPackage = async (
       durationMinutes,
       questionCount,
       passingScore ?? null,
+      passingMode ?? 'none',
+      passingGrades == null
+        ? null
+        : JSON.stringify(passingGrades),
       status,
       isFree,
       startAt ?? null,
       endAt ?? null,
-      createdBy
+      createdBy,
     ]
-  );
+  )
 
-  return rows[0];
-};
+  return rows[0]
+}
 
 export const updatePackage = async (
   client,
@@ -260,14 +262,16 @@ export const updatePackage = async (
     description,
     durationMinutes,
     passingScore,
+    passingMode,
+    passingGrades,
     status,
     isFree,
     startAt,
     endAt,
-    questions
+    questions,
   }
 ) => {
-  const questionCount = questions.length;
+  const questionCount = questions.length
 
   const query = `
     UPDATE tryout_packages
@@ -278,12 +282,14 @@ export const updatePackage = async (
       duration_minutes = $4,
       question_count = $5,
       passing_score = $6,
-      status = $7,
-      is_free = $8,
-      start_at = $9,
-      end_at = $10,
+      passing_mode = $7,
+      passing_grades = $8::jsonb,
+      status = $9,
+      is_free = $10,
+      start_at = $11,
+      end_at = $12,
       updated_at = CURRENT_TIMESTAMP
-    WHERE id = $11
+    WHERE id = $13
     RETURNING
       id,
       name,
@@ -292,6 +298,8 @@ export const updatePackage = async (
       duration_minutes,
       question_count,
       passing_score,
+      passing_mode,
+      passing_grades,
       status,
       is_free,
       start_at,
@@ -299,7 +307,7 @@ export const updatePackage = async (
       created_by,
       created_at,
       updated_at
-  `;
+  `
 
   const values = [
     name,
@@ -308,24 +316,29 @@ export const updatePackage = async (
     durationMinutes,
     questionCount,
     passingScore ?? null,
+    passingMode ?? 'none',
+    passingGrades == null
+      ? null
+      : JSON.stringify(passingGrades),
     status,
     isFree,
     startAt ?? null,
     endAt ?? null,
-    id
-  ];
+    id,
+  ]
 
   const { rows } = await client.query(
     query,
     values
-  );
+  )
 
   if (!rows[0]) {
-    return null;
+    return null
   }
 
-  return mapPackage(rows[0]);
-};
+  return mapPackage(rows[0])
+}
+
 
 export const deletePackage = async (
   client,

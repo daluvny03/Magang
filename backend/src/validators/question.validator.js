@@ -13,7 +13,13 @@ const answerOptionSchema = Joi.object({
 
   image: Joi.string()
     .allow(null, '')
-    .default(null)
+    .default(null),
+
+  score: Joi.number()
+    .integer()
+    .min(0)
+    .max(5)
+    .optional()
 });
 
 const explanationSchema = Joi.object({
@@ -68,7 +74,7 @@ export const createQuestionSchema = Joi.object({
   score: Joi.number()
     .integer()
     .min(0)
-    .required(),
+    .default(0),
 
   difficulty: Joi.number()
     .integer()

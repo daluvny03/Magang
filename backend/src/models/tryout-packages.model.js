@@ -6,6 +6,8 @@ export const createTryoutPackageModel = ({
   durationMinutes,
   questionCount,
   passingScore,
+  passingMode,
+  passingGrades,
   status,
   isFree,
   startAt,
@@ -21,6 +23,8 @@ export const createTryoutPackageModel = ({
   durationMinutes,
   questionCount,
   passingScore,
+  passingMode,
+  passingGrades,
   status,
   isFree,
   startAt,
@@ -28,4 +32,4 @@ export const createTryoutPackageModel = ({
   createdBy,
   createdAt,
   updatedAt,
-});
+})

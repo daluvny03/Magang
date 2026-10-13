@@ -41,6 +41,26 @@ const baseFields = {
     .precision(2)
     .allow(null),
 
+  passingMode: Joi.string()
+    .valid('none', 'total', 'category')
+    .default('none'),
+
+  passingGrades: Joi.object({
+    twk: Joi.number()
+      .min(0)
+      .precision(2),
+
+    tiu: Joi.number()
+      .min(0)
+      .precision(2),
+
+    tkp: Joi.number()
+      .min(0)
+      .precision(2),
+  })
+    .min(1)
+    .allow(null),
+
   status: Joi.string()
     .valid('draft', 'published', 'archived')
     .required(),
