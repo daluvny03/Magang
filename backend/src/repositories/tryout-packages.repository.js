@@ -256,22 +256,43 @@ export const createPackage = async (
 export const updatePackage = async (
   client,
   id,
-  {
-    name,
-    slug,
-    description,
-    durationMinutes,
-    passingScore,
-    passingMode,
-    passingGrades,
-    status,
-    isFree,
-    startAt,
-    endAt,
-    questions,
-  }
+  payload
 ) => {
-  const questionCount = questions.length
+  const existingResult = await client.query(
+    `
+      SELECT *
+      FROM tryout_packages
+      WHERE id = $1
+      FOR UPDATE
+    `,
+    [id]
+  )
+
+  const existing = existingResult.rows[0]
+
+  if (!existing) {
+    return null
+  }
+
+  const {
+    name = existing.name,
+    slug = existing.slug,
+    description = existing.description,
+    durationMinutes = existing.duration_minutes,
+    passingScore = existing.passing_score,
+    passingMode = existing.passing_mode,
+    passingGrades = existing.passing_grades,
+    status = existing.status,
+    isFree = existing.is_free,
+    startAt = existing.start_at,
+    endAt = existing.end_at,
+    questions,
+  } = payload
+
+  const questionCount =
+    questions === undefined
+      ? existing.question_count
+      : questions.length
 
   const query = `
     UPDATE tryout_packages
@@ -312,18 +333,18 @@ export const updatePackage = async (
   const values = [
     name,
     slug,
-    description ?? null,
+    description,
     durationMinutes,
     questionCount,
-    passingScore ?? null,
-    passingMode ?? 'none',
+    passingScore,
+    passingMode,
     passingGrades == null
       ? null
       : JSON.stringify(passingGrades),
     status,
     isFree,
-    startAt ?? null,
-    endAt ?? null,
+    startAt,
+    endAt,
     id,
   ]
 
@@ -332,11 +353,9 @@ export const updatePackage = async (
     values
   )
 
-  if (!rows[0]) {
-    return null
-  }
-
-  return mapPackage(rows[0])
+  return rows[0]
+    ? mapPackage(rows[0])
+    : null
 }
 
 

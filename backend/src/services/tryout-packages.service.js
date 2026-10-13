@@ -10,6 +10,10 @@ import {
 } from '../repositories/tryout-packages.repository.js';
 
 import {
+  hasPackageAttempts,
+} from '../repositories/package-attempt-guard.repository.js'
+
+import {
   validatePassingRules,
   validatePassingScoreLimits,
 } from '../validators/passing-rules.validator.js'
@@ -72,33 +76,29 @@ const getSubscriptionTiers = async (
 };
 
 const getPackageRelations = async (
-  packageId
+  packageId,
+  client = pool
 ) => {
-  const [
-    categoriesResult,
-    questionsResult,
-    tiersResult
-  ] = await Promise.all([
-    pool.query(
-      `
-        SELECT
-          c.id,
-          c.name,
-          c.slug,
-          c.parent_id,
-          c.level
-        FROM categories c
-        INNER JOIN tryout_package_categories tpc
-          ON tpc.category_id = c.id
-        WHERE tpc.package_id = $1
-        ORDER BY c.name ASC
-      `,
-      [packageId]
-    ),
+  const categoriesResult = await client.query(
+    `
+      SELECT
+        c.id,
+        c.name,
+        c.slug,
+        c.parent_id,
+        c.level
+      FROM categories c
+      INNER JOIN tryout_package_categories tpc
+        ON tpc.category_id = c.id
+      WHERE tpc.package_id = $1
+      ORDER BY c.name ASC
+    `,
+    [packageId]
+  )
 
-    pool.query(
-  `
-        SELECT
+  const questionsResult = await client.query(
+    `
+      SELECT
         q.id,
         q.category_id,
         q.question_text,
@@ -106,37 +106,104 @@ const getPackageRelations = async (
         q.difficulty,
         q.is_active,
         tpq.question_order AS "questionOrder"
-        FROM questions q
-        INNER JOIN tryout_package_questions tpq
+      FROM questions q
+      INNER JOIN tryout_package_questions tpq
         ON tpq.question_id = q.id
-        WHERE tpq.tryout_package_id = $1
-        ORDER BY tpq.question_order ASC
+      WHERE tpq.tryout_package_id = $1
+      ORDER BY tpq.question_order ASC
     `,
     [packageId]
-    ),
+  )
 
-    pool.query(
-      `
-        SELECT
-          st.id,
-          st.name,
-          st.price
-        FROM subscription_tiers st
-        INNER JOIN tryout_package_subscription_tiers tpst
+  const tiersResult = await client.query(
+    `
+      SELECT
+        st.id,
+        st.name,
+        st.price
+      FROM subscription_tiers st
+      INNER JOIN tryout_package_subscription_tiers tpst
         ON tpst.subscription_tier_id = st.id
-        WHERE tpst.tryout_package_id = $1
-        ORDER BY st.id ASC
-      `,
-      [packageId]
-    )
-  ]);
+      WHERE tpst.tryout_package_id = $1
+      ORDER BY st.id ASC
+    `,
+    [packageId]
+  )
 
   return {
     categories: categoriesResult.rows,
     questions: questionsResult.rows,
-    subscriptionTiers: tiersResult.rows
-  };
-};
+    subscriptionTiers: tiersResult.rows,
+  }
+}
+
+const normalizeNumeric = (value) =>
+  value == null ? null : Number(value)
+
+const normalizeGrades = (grades) => {
+  if (grades == null) return null
+
+  return Object.fromEntries(
+    Object.entries(grades)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => [
+        key,
+        normalizeNumeric(value),
+      ])
+  )
+}
+
+const hasPassingRulesChanged = (current, next) =>
+  current.passing_mode !== next.passingMode ||
+  normalizeNumeric(current.passing_score) !==
+    normalizeNumeric(next.passingScore) ||
+  JSON.stringify(
+    normalizeGrades(current.passing_grades)
+  ) !== JSON.stringify(
+    normalizeGrades(next.passingGrades)
+  )
+
+const sameIdSet = (currentIds, nextIds) => {
+  const current = [...currentIds].map(String).sort()
+  const next = [...nextIds].map(String).sort()
+
+  return (
+    current.length === next.length &&
+    current.every((value, index) =>
+      value === next[index]
+    )
+  )
+}
+
+const sameQuestionMapping = (
+  currentQuestions,
+  nextQuestions
+) => {
+  if (
+    currentQuestions.length !== nextQuestions.length
+  ) {
+    return false
+  }
+
+  const current = currentQuestions
+    .map((item) => ({
+      id: String(item.questionId),
+      order: Number(item.questionOrder),
+    }))
+    .sort((a, b) => a.order - b.order)
+
+  const next = nextQuestions
+    .map((item) => ({
+      id: String(item.questionId),
+      order: Number(item.questionOrder),
+    }))
+    .sort((a, b) => a.order - b.order)
+
+  return current.every((item, index) =>
+    item.id === next[index].id &&
+    item.order === next[index].order
+  )
+}
 
 export const getPackages = async ({
   page,
@@ -278,92 +345,232 @@ export const updateTryoutPackage = async (
   id,
   payload
 ) => {
-  const existingPackage = await findPackageById(
-    id
-  )
-
-  if (!existingPackage) {
-    throw new AppError(
-      'Tryout package not found',
-      404,
-      'PACKAGE_NOT_FOUND'
-    )
-  }
-
-  const passingRules = validatePassingRules({
-    passingMode: payload.passingMode,
-    passingScore: payload.passingScore,
-    passingGrades: payload.passingGrades,
-  })
-
-  const validatedPayload = {
-    ...payload,
-    ...passingRules,
-  }
-
-  const duplicatePackage = await findPackageByName(
-    validatedPayload.name
-  )
-
-  if (
-    duplicatePackage &&
-    Number(duplicatePackage.id) !== Number(id)
-  ) {
-    throw new AppError(
-      'Tryout package name is already registered',
-      409,
-      'PACKAGE_NAME_ALREADY_EXISTS'
-    )
-  }
-
   const client = await pool.connect()
 
   try {
     await client.query('BEGIN')
 
-    await validateRelations(
-      client,
-      validatedPayload
+    // 1. Lock package
+    const packageResult = await client.query(
+      `
+        SELECT *
+        FROM tryout_packages
+        WHERE id = $1
+        FOR UPDATE
+      `,
+      [id]
     )
 
-  if (validatedPayload.passingMode !== 'none') {
-    const scoreLimits =
-      await getPackageQuestionScoreLimits(
-        client,
+    const existingPackage = packageResult.rows[0]
+
+    if (!existingPackage) {
+      throw new AppError(
+        'Tryout package not found',
+        404,
+        'PACKAGE_NOT_FOUND'
+      )
+    }
+
+    // 2. Ambil relasi saat ini dalam transaksi
+    const relations = await getPackageRelations(
+      id,
+      client
+    )
+
+    const currentCategoryIds =
+      relations.categories.map(
+        (item) => item.id
+      )
+
+    const currentQuestions =
+      relations.questions.map(
+        (item) => ({
+          questionId: item.id,
+          questionOrder: item.questionOrder,
+        })
+      )
+
+    const currentTierIds =
+      relations.subscriptionTiers.map(
+        (item) => item.id
+      )
+
+    // 3. Gunakan konfigurasi lama jika tidak
+    // disertakan di payload update
+    const passingRules = validatePassingRules({
+      passingMode:
+        payload.passingMode ??
+        existingPackage.passing_mode,
+
+      passingScore:
+        payload.passingScore === undefined
+          ? existingPackage.passing_score
+          : payload.passingScore,
+
+      passingGrades:
+        payload.passingGrades === undefined
+          ? existingPackage.passing_grades
+          : payload.passingGrades,
+    })
+
+    const validatedPayload = {
+      ...payload,
+      ...passingRules,
+
+      categoryIds:
+        payload.categoryIds ??
+        currentCategoryIds,
+
+      questions:
+        payload.questions ??
+        currentQuestions,
+
+      subscriptionTierIds:
+        payload.subscriptionTierIds ??
+        currentTierIds,
+    }
+
+    // 4. Periksa perubahan nama
+    if (
+      validatedPayload.name !== undefined &&
+      validatedPayload.name !==
+        existingPackage.name
+    ) {
+      const duplicatePackage =
+        await findPackageByName(
+          validatedPayload.name
+        )
+
+      if (
+        duplicatePackage &&
+        Number(duplicatePackage.id) !== Number(id)
+      ) {
+        throw new AppError(
+          'Tryout package name is already registered',
+          409,
+          'PACKAGE_NAME_ALREADY_EXISTS'
+        )
+      }
+    }
+
+    // 5. Bandingkan konfigurasi
+    const passingChanged =
+      hasPassingRulesChanged(
+        existingPackage,
+        passingRules
+      )
+
+    const durationChanged =
+      payload.durationMinutes !== undefined &&
+      Number(payload.durationMinutes) !==
+        Number(existingPackage.duration_minutes)
+
+    const categoriesChanged =
+      !sameIdSet(
+        currentCategoryIds,
+        validatedPayload.categoryIds
+      )
+
+    const questionsChanged =
+      !sameQuestionMapping(
+        currentQuestions,
         validatedPayload.questions
       )
 
-    validatePassingScoreLimits({
-      passingMode: validatedPayload.passingMode,
-      passingScore: validatedPayload.passingScore,
-      passingGrades: validatedPayload.passingGrades,
-      scoreLimits,
-    })
-  }
+    // 6. Guard package yang sudah digunakan
+    const hasAttempts =
+      await hasPackageAttempts(
+        client,
+        id
+      )
 
+    if (
+      hasAttempts &&
+      (
+        passingChanged ||
+        durationChanged ||
+        categoriesChanged ||
+        questionsChanged
+      )
+    ) {
+      throw new AppError(
+        'Package exam configuration cannot be modified because it has existing attempts',
+        409,
+        'PACKAGE_ALREADY_USED'
+      )
+    }
+
+    // 7. Validasi relasi hanya jika mapping berubah
+    if (
+      categoriesChanged ||
+      questionsChanged ||
+      payload.subscriptionTierIds !== undefined
+    ) {
+      await validateRelations(
+        client,
+        validatedPayload
+      )
+    }
+
+    // 8. Validasi passing score jika diperlukan
+    if (
+      !hasAttempts &&
+      validatedPayload.passingMode !== 'none'
+    ) {
+      const scoreLimits =
+        await getPackageQuestionScoreLimits(
+          client,
+          validatedPayload.questions
+        )
+
+      validatePassingScoreLimits({
+        passingMode: validatedPayload.passingMode,
+        passingScore:
+          validatedPayload.passingScore,
+        passingGrades:
+          validatedPayload.passingGrades,
+        scoreLimits,
+      })
+    }
+
+    // 9. Update informasi package
     const packageData = await updatePackage(
       client,
       id,
       validatedPayload
     )
 
-    await replacePackageCategories(
-      client,
-      id,
-      validatedPayload.categoryIds
-    )
+    // 10. Replace mapping hanya jika berubah
+    if (categoriesChanged) {
+      await replacePackageCategories(
+        client,
+        id,
+        validatedPayload.categoryIds
+      )
+    }
 
-    await replacePackageQuestions(
-      client,
-      id,
-      validatedPayload.questions
-    )
+    if (questionsChanged) {
+      await replacePackageQuestions(
+        client,
+        id,
+        validatedPayload.questions
+      )
+    }
 
-    await replacePackageSubscriptionTiers(
-      client,
-      id,
-      validatedPayload.subscriptionTierIds
-    )
+    // Tier boleh berubah mengikuti aturan akses
+    if (
+      payload.subscriptionTierIds !== undefined &&
+      !sameIdSet(
+        currentTierIds,
+        validatedPayload.subscriptionTierIds
+      )
+    ) {
+      await replacePackageSubscriptionTiers(
+        client,
+        id,
+        validatedPayload.subscriptionTierIds
+      )
+    }
 
     await client.query('COMMIT')
 
@@ -600,6 +807,19 @@ export const updatePackageCategories = async (id, categoryIds = []) => {
       throw new AppError('Tryout package not found', 404, 'PACKAGE_NOT_FOUND');
     }
 
+    const hasAttempts = await hasPackageAttempts(
+      client,
+      id
+    )
+
+    if (hasAttempts) {
+      throw new AppError(
+        'Package categories cannot be modified because the package has existing attempts',
+        409,
+        'PACKAGE_ALREADY_USED'
+      )
+    }
+
     const categories = await getCategories(client, categoryIds);
     if (categories.length !== categoryIds.length) {
       const existingIds = new Set(categories.map((item) => String(item.id)));
@@ -645,20 +865,47 @@ export const updatePackageQuestions = async (
   id,
   questions
 ) => {
-  const packageData = await findPackageById(id);
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+  const packageResult = await client.query(
+    `
+      SELECT
+        id,
+        passing_mode,
+        passing_score,
+        passing_grades
+      FROM tryout_packages
+      WHERE id = $1
+      FOR UPDATE
+    `,
+    [id]
+  )
+
+  const packageData = packageResult.rows[0]
 
   if (!packageData) {
     throw new AppError(
       'Tryout package not found',
       404,
       'PACKAGE_NOT_FOUND'
-    );
+    )
   }
 
-  const client = await pool.connect();
+  const hasAttempts = await hasPackageAttempts(
+    client,
+    id
+  )
 
-  try {
-    await client.query('BEGIN');
+  if (hasAttempts) {
+    throw new AppError(
+      'Package cannot be modified because it has existing attempts',
+      409,
+      'PACKAGE_ALREADY_USED'
+    )
+  }
 
     const questionIds = questions.map(
       (question) => question.questionId
@@ -743,7 +990,7 @@ export const updatePackageQuestions = async (
           )
       );
 
-    if (packageData.passingMode !== 'none') {
+    if (packageData.passing_mode !== 'none') {
       const scoreLimits =
         await getPackageQuestionScoreLimits(
           client,
@@ -751,14 +998,15 @@ export const updatePackageQuestions = async (
         )
 
       validatePassingScoreLimits({
-        passingMode: packageData.passingMode,
-        passingScore: packageData.passingScore == null
-          ? null
-          : Number(packageData.passingScore),
-        passingGrades: packageData.passingGrades,
+        passingMode: packageData.passing_mode,
+        passingScore:
+          packageData.passing_score == null
+            ? null
+            : Number(packageData.passing_score),
+        passingGrades: packageData.passing_grades,
         scoreLimits,
       })
-    }  
+    }
 
     if (invalidQuestion) {
       throw new AppError(

@@ -1,4 +1,7 @@
 import { pool } from '../../config/database.js'
+import {
+  evaluatePassingStatus,
+} from '../utils/evaluate-passing-status.js'
 
 const mapCompletedAttempt = (row) => {
   if (!row) return null
@@ -45,13 +48,12 @@ export const finishTryoutAttempt = async ({
             status,
             started_at,
             completed_at,
-            expires_at
-
+            expires_at,
+            exam_snapshot,
+            result_snapshot
           FROM tryout_attempts
-
           WHERE id = $1
             AND user_id = $2
-
           FOR UPDATE
         `,
         [
@@ -124,6 +126,141 @@ export const finishTryoutAttempt = async ({
       }
     }
 
+    if (
+      !attempt.exam_snapshot ||
+      !Array.isArray(
+        attempt.exam_snapshot.categoryLimits
+      )
+    ) {
+      const error = new Error(
+        'Attempt does not have a valid exam snapshot'
+      )
+
+      error.statusCode = 409
+      error.code = 'EXAM_SNAPSHOT_MISSING'
+
+      throw error
+    }
+
+    const categoryScoreResult = await client.query(
+      `
+        WITH RECURSIVE category_hierarchy AS (
+          SELECT
+            id,
+            parent_id,
+            slug AS root_slug
+          FROM categories
+          WHERE parent_id IS NULL
+
+          UNION ALL
+
+          SELECT
+            c.id,
+            c.parent_id,
+            ch.root_slug
+          FROM categories c
+          INNER JOIN category_hierarchy ch
+            ON c.parent_id = ch.id
+        )
+
+        SELECT
+          ch.root_slug AS slug,
+          COUNT(DISTINCT q.id)::integer
+            AS total_questions,
+          COALESCE(
+            SUM(ta.score),
+            0
+          ) AS score
+
+        FROM tryout_package_questions tpq
+
+        INNER JOIN questions q
+          ON q.id = tpq.question_id
+
+        INNER JOIN category_hierarchy ch
+          ON ch.id = q.category_id
+
+        LEFT JOIN tryout_answers ta
+          ON ta.question_id = q.id
+          AND ta.attempt_id = $1
+
+        WHERE tpq.tryout_package_id = $2
+
+        GROUP BY ch.root_slug
+      `,
+      [
+        attemptId,
+        attempt.tryout_package_id,
+      ]
+    )
+
+    const examSnapshot = attempt.exam_snapshot
+
+    const actualLimits = examSnapshot.categoryLimits
+
+    const mappedCategories = categoryScoreResult.rows
+
+    if (
+      mappedCategories.length !== actualLimits.length
+    ) {
+      const error = new Error(
+        'Package categories changed after attempt started'
+      )
+
+      error.statusCode = 409
+      error.code = 'EXAM_MAPPING_CHANGED'
+
+      throw error
+    }
+
+    for (const limit of actualLimits) {
+      const mapped = mappedCategories.find(
+        (item) => item.slug === limit.slug
+      )
+
+      if (
+        !mapped ||
+        Number(mapped.total_questions) !==
+          Number(limit.totalQuestions)
+      ) {
+        const error = new Error(
+          'Package question mapping is inconsistent with exam snapshot'
+        )
+
+        error.statusCode = 409
+        error.code = 'EXAM_MAPPING_CHANGED'
+
+        throw error
+      }
+    }
+
+    const scoreResult = await client.query(
+      `
+        SELECT
+          COALESCE(SUM(score), 0) AS total_score
+        FROM tryout_answers
+        WHERE attempt_id = $1
+      `,
+      [attemptId]
+    )
+
+    const totalScore = Number(
+      scoreResult.rows[0].total_score
+    )
+
+    const categoryScores = mappedCategories.map(
+      (category) => ({
+        slug: category.slug,
+        score: Number(category.score),
+      })
+    )
+
+    const resultSnapshot = evaluatePassingStatus({
+      examSnapshot,
+      totalScore,
+      categoryScores,
+    })
+
     const result =
       await client.query(
         `
@@ -189,6 +326,8 @@ export const finishTryoutAttempt = async ({
                 0
               ),
 
+            result_snapshot = $4::jsonb,
+
             updated_at =
               CURRENT_TIMESTAMP
 
@@ -219,6 +358,7 @@ export const finishTryoutAttempt = async ({
           attempt.tryout_package_id,
           attemptId,
           userId,
+          JSON.stringify(resultSnapshot),
         ]
       )
 

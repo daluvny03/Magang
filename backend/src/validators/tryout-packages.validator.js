@@ -121,23 +121,26 @@ export const createPackageSchema =
     return value;
   });
 
-export const updatePackageSchema =
-  Joi.object({
-    ...baseFields
-  }).custom((value, helpers) => {
+export const updatePackageSchema = Joi.object({
+  ...baseFields,
+})
+  .fork(
+    Object.keys(baseFields),
+    (schema) => schema.optional()
+  )
+  .min(1)
+  .custom((value, helpers) => {
     if (
       value.startAt &&
       value.endAt &&
       new Date(value.endAt) <=
         new Date(value.startAt)
     ) {
-      return helpers.error(
-        'any.invalid'
-      );
+      return helpers.error('any.invalid')
     }
 
-    return value;
-  });
+    return value
+  })
 
 export const packageQuerySchema =
   Joi.object({
