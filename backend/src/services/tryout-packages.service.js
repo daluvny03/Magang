@@ -500,6 +500,35 @@ export const updateTryoutPackage = async (
       )
     }
 
+    if (questionsChanged) {
+      const questionIds =
+        validatedPayload.questions.map(
+          (question) => question.questionId
+        )
+
+      const lockResult = await client.query(
+        `
+          SELECT id
+          FROM questions
+          WHERE id = ANY($1::bigint[])
+          ORDER BY id
+          FOR SHARE
+        `,
+        [questionIds]
+      )
+
+      if (
+        lockResult.rows.length !==
+        new Set(questionIds.map(String)).size
+      ) {
+        throw new AppError(
+          'One or more questions were not found',
+          404,
+          'QUESTION_NOT_FOUND'
+        )
+      }
+    }
+
     // 7. Validasi relasi hanya jika mapping berubah
     if (
       categoriesChanged ||
@@ -910,6 +939,32 @@ export const updatePackageQuestions = async (
     const questionIds = questions.map(
       (question) => question.questionId
     );
+
+    const lockedQuestions = await client.query(
+      `
+        SELECT id
+        FROM questions
+        WHERE id = ANY($1::bigint[])
+        ORDER BY id
+        FOR SHARE
+      `,
+      [questionIds]
+    )
+
+    const uniqueQuestionIds = new Set(
+      questionIds.map(String)
+    )
+
+    if (
+      lockedQuestions.rows.length !==
+      uniqueQuestionIds.size
+    ) {
+      throw new AppError(
+        'One or more questions were not found',
+        404,
+        'QUESTION_NOT_FOUND'
+      )
+    }
 
     const existingQuestions = await getQuestions(
       client,

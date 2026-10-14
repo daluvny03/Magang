@@ -1,5 +1,8 @@
 import { pool } from '../config/database.js';
 import { createQuestionModel } from '../models/question.model.js';
+import {
+  hasQuestionAttempts,
+} from './question-attempt-guard.repository.js'
 
 const mapQuestion = (row) => {
   if (!row) return null;
@@ -212,42 +215,83 @@ export const updateQuestion = async ({
   difficulty,
   isActive
 }) => {
-  const query = `
-    UPDATE questions
-    SET
-      category_id = $1,
-      question_text = $2,
-      question_image = $3,
-      answer_options = $4::jsonb,
-      correct_answer = $5,
-      explanation = $6::jsonb,
-      score = $7,
-      difficulty = $8,
-      is_active = $9,
-      updated_at = NOW()
-    WHERE id = $10
-    RETURNING id
-  `;
+  const client = await pool.connect()
 
-  const { rows } = await pool.query(query, [
-    categoryId,
-    questionText,
-    questionImage ?? null,
-    JSON.stringify(answerOptions),
-    correctAnswer,
-    JSON.stringify(explanation),
-    score,
-    difficulty,
-    isActive,
-    id
-  ]);
+  try {
+    await client.query('BEGIN')
 
-  if (!rows[0]) {
-    return null;
+    const questionResult = await client.query(
+      `
+        SELECT id
+        FROM questions
+        WHERE id = $1
+        FOR UPDATE
+      `,
+      [id]
+    )
+
+    if (!questionResult.rows[0]) {
+      await client.query('ROLLBACK')
+      return null
+    }
+
+    const hasAttempts =
+      await hasQuestionAttempts(
+        client,
+        id
+      )
+
+    if (hasAttempts) {
+      throw new AppError(
+        'Question cannot be modified because it belongs to a package with existing attempts',
+        409,
+        'QUESTION_ALREADY_USED'
+      )
+    }
+
+    const result = await client.query(
+      `
+        UPDATE questions
+        SET
+          category_id = $1,
+          question_text = $2,
+          question_image = $3,
+          answer_options = $4::jsonb,
+          correct_answer = $5,
+          explanation = $6::jsonb,
+          score = $7,
+          difficulty = $8,
+          is_active = $9,
+          updated_at = NOW()
+        WHERE id = $10
+        RETURNING id
+      `,
+      [
+        categoryId,
+        questionText,
+        questionImage ?? null,
+        JSON.stringify(answerOptions),
+        correctAnswer,
+        JSON.stringify(explanation),
+        score,
+        difficulty,
+        isActive,
+        id
+      ]
+    )
+
+    await client.query('COMMIT')
+
+    return result.rows[0]
+      ? findQuestionById(result.rows[0].id)
+      : null
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
   }
-
-  return findQuestionById(rows[0].id);
-};
+}
 
 export const findQuestionByText = async ({
   categoryId,
@@ -308,19 +352,62 @@ export const findQuestionByText = async ({
 };
 
 export const deactivateQuestion = async (id) => {
-  const query = `
-    UPDATE questions
-    SET
-      is_active = false,
-      updated_at = NOW()
-    WHERE id = $1
-    RETURNING id
-  `;
+  const client = await pool.connect()
 
-  const { rows } = await pool.query(query, [id]);
+  try {
+    await client.query('BEGIN')
 
-  return rows[0] || null;
-};
+    const questionResult = await client.query(
+      `
+        SELECT id
+        FROM questions
+        WHERE id = $1
+        FOR UPDATE
+      `,
+      [id]
+    )
+
+    if (!questionResult.rows[0]) {
+      await client.query('ROLLBACK')
+      return null
+    }
+
+    const hasAttempts =
+      await hasQuestionAttempts(
+        client,
+        id
+      )
+
+    if (hasAttempts) {
+      throw new AppError(
+        'Question cannot be deactivated because it belongs to a package with existing attempts',
+        409,
+        'QUESTION_ALREADY_USED'
+      )
+    }
+
+    const result = await client.query(
+      `
+        UPDATE questions
+        SET
+          is_active = false,
+          updated_at = NOW()
+        WHERE id = $1
+        RETURNING id
+      `,
+      [id]
+    )
+
+    await client.query('COMMIT')
+
+    return result.rows[0] || null
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+}
 
 export const findDuplicateQuestions =
   async (questions) => {

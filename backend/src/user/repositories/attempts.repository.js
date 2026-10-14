@@ -68,8 +68,7 @@ const getExamSnapshotData = async (
     error.code = 'TRYOUT_NOT_FOUND'
     throw error
   }
-
-  // Ambil soal yang terpasang pada paket.
+  
   const questions = await getMappedPackageQuestions(
     client,
     tryoutPackageId
@@ -84,7 +83,33 @@ const getExamSnapshotData = async (
     throw error
   }
 
-  // Gunakan perhitungan skor yang sama dengan Admin.
+  // Lock soal dalam urutan ID konsisten.
+  const questionIds = questions.map(
+    (item) => item.questionId
+  )
+
+  const lockedQuestions = await client.query(
+    `
+      SELECT id
+      FROM questions
+      WHERE id = ANY($1::bigint[])
+      ORDER BY id
+      FOR SHARE
+    `,
+    [questionIds]
+  )
+
+  if (lockedQuestions.rows.length !==
+      new Set(questionIds.map(String)).size) {
+    const error = new Error(
+      'Package contains unavailable questions'
+    )
+    error.statusCode = 409
+    error.code = 'PACKAGE_QUESTIONS_CHANGED'
+    throw error
+  }
+
+  // Lanjutkan perhitungan score limits.
   const scoreLimits =
     await getPackageQuestionScoreLimits(
       client,

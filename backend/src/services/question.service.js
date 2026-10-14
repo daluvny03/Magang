@@ -9,6 +9,8 @@ import {
 
 import { findCategoryById } from '../repositories/category.repository.js';
 import { AppError } from '../utils/app-error.js';
+import { hasQuestionAttempts } from '../repositories/question-attempt-guard.repository.js';
+import { pool } from '../config/database.js';
 
 const validateQuestionOptions = ({
   answerOptions,
@@ -83,6 +85,21 @@ const validateDuplicateQuestion = async ({
     );
   }
 };
+
+const ensureQuestionCanBeModified = async (id) => {
+  const hasAttempts = await hasQuestionAttempts(
+    pool,
+    id
+  )
+
+  if (hasAttempts) {
+    throw new AppError(
+      'Question cannot be modified because it belongs to a package with existing attempts',
+      409,
+      'QUESTION_ALREADY_USED'
+    )
+  }
+}
 
 export const getQuestions = async ({
   page,
@@ -168,51 +185,52 @@ export const updateExistingQuestion = async ({
       'QUESTION_NOT_FOUND'
     )
   }
+  await ensureQuestionCanBeModified(id)
 
   await validateCategory(data.categoryId)
 
   validateQuestionOptions({
     answerOptions: data.answerOptions,
-    correctAnswer: data.correctAnswer
+    correctAnswer: data.correctAnswer,
   })
 
-  validateOptionContent(
-    data.answerOptions
-    )
+  validateOptionContent(data.answerOptions)
 
   await validateDuplicateQuestion({
     categoryId: data.categoryId,
     questionText: data.questionText,
-    excludeId: id
+    excludeId: id,
   })
 
   return updateQuestion({
     id,
-    ...data
+    ...data,
   })
 }
 
 export const removeQuestion = async (id) => {
-  const existingQuestion = await findQuestionById(id);
+  const existingQuestion = await findQuestionById(id)
 
   if (!existingQuestion) {
     throw new AppError(
       'Question not found',
       404,
       'QUESTION_NOT_FOUND'
-    );
+    )
   }
 
-  const result = await deactivateQuestion(id);
+  await ensureQuestionCanBeModified(id)
+
+  const result = await deactivateQuestion(id)
 
   if (!result) {
     throw new AppError(
       'Question could not be deleted',
       500,
       'QUESTION_DELETE_FAILED'
-    );
+    )
   }
-};
+}
 
 const validateOptionContent = (
   answerOptions
