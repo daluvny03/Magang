@@ -43,9 +43,8 @@ function Sidebar({ isOpen, onClose }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 border-r border-gray-100 bg-white transition-transform duration-200 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-40 w-64 border-r border-gray-100 bg-white transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         <div className="flex h-16 items-center justify-between border-b border-gray-100 px-5">
           <button

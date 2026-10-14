@@ -22,6 +22,7 @@ import TryoutPage from '../user/pages/TryoutPage'
 import TryoutDetailPage from '../user/pages/TryoutDetailPage'
 import CatExamPage from '../user/pages/CatExamPage'
 import ResultPage from '../user/pages/ResultPage'
+import HistoryPage from '../user/pages/HistoryPage'
 
 
 function AppRouter() {
@@ -99,6 +100,10 @@ function AppRouter() {
                             element={<TryoutDetailPage />}
                         />
 
+                        <Route
+                            path="history"
+                            element={<HistoryPage />}
+                        />
 
                         <Route
                             path="results/:attemptId"

@@ -21,7 +21,21 @@ import {
     updateDoubtful,
 } from '../controllers/doubtful.controller.js'
 
+import {
+  getAttemptHistory,
+} from '../controllers/attempt-history.controller.js'
+
+import {
+  validateHistoryQuery,
+} from '../middlewares/validate-history-query.middleware.js'
+
 const router = Router()
+
+router.get(
+  '/history',
+  validateHistoryQuery,
+  getAttemptHistory
+)
 
 router.get(
   '/:attemptId/questions',
