@@ -5,6 +5,10 @@ import {
   findAttemptAnalysisProgress,
 } from '../repositories/attempt-analysis.repository.js'
 
+import {
+  buildAttemptTimeAnalysis,
+} from './attempt-time-analysis.service.js'
+
 const createAnalysisError = (message, statusCode, code) => {
   const error = new Error(message)
   error.statusCode = statusCode
@@ -361,6 +365,26 @@ export const getAttemptAnalysisForUser = async ({
     }
     }
 
+    const timeAnalysis = buildAttemptTimeAnalysis(
+    questions
+    )
+
+    const timeInsightMap = new Map(
+    timeAnalysis.questionInsights.map((item) => [
+        String(item.questionId),
+        item,
+    ])
+    )
+
+    const questionsWithInsight = questions.map(
+    (question) => ({
+        ...question,
+        timeInsight:
+        timeInsightMap.get(String(question.questionId))
+        ?? null,
+    })
+    )
+
   return {
     attempt: {
       id: String(attempt.id),
@@ -396,6 +420,11 @@ export const getAttemptAnalysisForUser = async ({
       recordedTimeSeconds,
     },
     categories,
-    questions,
+    questions: questionsWithInsight,
+        timeAnalysis: {
+            rules: timeAnalysis.rules,
+            summary: timeAnalysis.summary,
+            categories: timeAnalysis.categories,
+        },
   }
 }

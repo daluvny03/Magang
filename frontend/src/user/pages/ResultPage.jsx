@@ -1,5 +1,5 @@
 
-import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Loader2, ArrowRight } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
 import { useAttemptResult } from '../hooks/useAttemptResult'
@@ -152,12 +152,22 @@ function ResultPage() {
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-500">
-                        Evaluasi performa, ketepatan jawaban,
-                        dan pembahasan setiap soal.
+                        Ringkasan pencapaian skor, akurasi,
+                        penyelesaian soal, dan waktu pengerjaan ujian.
                     </p>
                 </div>
 
                 <ResultAnalysisSection attemptId={attemptId} />
+
+                <div className="flex justify-end">
+                    <Link
+                        to={`/user/results/${attemptId}/analysis`}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                    >
+                        Lihat Analisis Per Soal
+                        <ArrowRight size={18} aria-hidden="true" />
+                    </Link>
+                </div>
             </section>
         </div>
     )

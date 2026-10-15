@@ -5,7 +5,6 @@ import { useAttemptAnalysis } from '../../hooks/useAttemptAnalysis'
 
 import AnalysisSummary from './AnalysisSummary'
 import CategoryPerformance from './CategoryPerformance'
-import QuestionAnalysisList from './QuestionAnalysisList'
 
 function AnalysisLoading() {
   return (
@@ -23,7 +22,7 @@ function AnalysisLoading() {
       </div>
 
       <span className="sr-only">
-        Memuat analisis hasil tryout
+        Memuat ringkasan analisis tryout
       </span>
     </div>
   )
@@ -37,7 +36,7 @@ function AnalysisError({ error, onRetry }) {
       ? 'Data analisis tidak ditemukan.'
       : status === 409
         ? 'Analisis belum tersedia atau data hasil ujian tidak konsisten.'
-        : 'Gagal memuat analisis hasil tryout.'
+        : 'Gagal memuat ringkasan analisis tryout.'
 
   return (
     <div
@@ -53,7 +52,7 @@ function AnalysisError({ error, onRetry }) {
 
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold text-red-900">
-            Analisis Tidak Tersedia
+            Ringkasan Analisis Tidak Tersedia
           </h2>
 
           <p className="mt-1 text-sm text-red-700">
@@ -64,9 +63,9 @@ function AnalysisError({ error, onRetry }) {
             <button
               type="button"
               onClick={onRetry}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
             >
-              <RefreshCw size={16} />
+              <RefreshCw size={16} aria-hidden="true" />
               Coba Lagi
             </button>
           )}
@@ -98,25 +97,22 @@ function ResultAnalysisSection({ attemptId }) {
     )
   }
 
-  if (!data) {
+  if (!data?.summary) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
-        Data analisis belum tersedia.
+        Ringkasan analisis belum tersedia.
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <AnalysisSummary summary={data.summary} />
+      <AnalysisSummary
+        summary={data.summary}
+      />
 
       <CategoryPerformance
         categories={data.categories ?? []}
-      />
-
-      <QuestionAnalysisList
-        key={attemptId}
-        questions={data.questions ?? []}
       />
     </div>
   )

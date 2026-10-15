@@ -23,7 +23,7 @@ import TryoutDetailPage from '../user/pages/TryoutDetailPage'
 import CatExamPage from '../user/pages/CatExamPage'
 import ResultPage from '../user/pages/ResultPage'
 import HistoryPage from '../user/pages/HistoryPage'
-
+import AnalysisPage from '../user/pages/AnalysisPage'
 
 function AppRouter() {
     return (
@@ -110,6 +110,10 @@ function AppRouter() {
                             element={<ResultPage />}
                         />
 
+                        <Route
+                            path="results/:attemptId/analysis"
+                            element={<AnalysisPage />}
+                        />
 
                         <Route
                             path="profile"
