@@ -1,4 +1,28 @@
 import Joi from 'joi';
+import { AppError } from '../utils/app-error.js';
+
+export const validatePackageSchedule = (payload, existing = {}) => {
+  const startAt = payload.startAt === undefined
+    ? existing.start_at
+    : payload.startAt;
+  const endAt = payload.endAt === undefined
+    ? existing.end_at
+    : payload.endAt;
+
+  for (const [field, value] of Object.entries({ startAt, endAt })) {
+    if (value != null && !Number.isFinite(new Date(value).getTime())) {
+      throw new AppError('Invalid package schedule', 422, 'INVALID_PACKAGE_SCHEDULE', [
+        { field, message: 'Schedule must contain a valid date' }
+      ]);
+    }
+  }
+
+  if (startAt != null && endAt != null && new Date(endAt) <= new Date(startAt)) {
+    throw new AppError('Invalid package schedule', 422, 'INVALID_PACKAGE_SCHEDULE', [
+      { field: 'endAt', message: 'End date must be after start date' }
+    ]);
+  }
+};
 
 const questionSchema = Joi.object({
   questionId: Joi.number()

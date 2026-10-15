@@ -1,5 +1,7 @@
 import { pool } from '../../config/database.js'
 import { getPackageQuestionScoreLimits } from '../../repositories/passing-rules.repository.js'
+import { AppError } from '../../utils/app-error.js'
+import { findAvailableTryoutByIdForUser } from './tryouts.repository.js'
 
 const mapAttempt = (row) => {
   if (!row) return null
@@ -184,7 +186,6 @@ const getExamSnapshotData = async (
 export const startTryoutAttempt = async ({
   userId,
   tryoutPackageId,
-  durationMinutes,
 }) => {
   const client = await pool.connect()
 
@@ -211,8 +212,28 @@ export const startTryoutAttempt = async ({
       ]
     )
 
+    // Jadwal tidak menghalangi resume, tetapi publish dan subscription
+    // tetap diperiksa. Lock menjaga konfigurasi paket selama start.
+    const packageData = await findAvailableTryoutByIdForUser(
+      userId,
+      tryoutPackageId,
+      { client, ignoreSchedule: true, lockPackage: true }
+    )
+
+    if (!packageData) {
+      throw new AppError('Tryout not found', 404, 'TRYOUT_NOT_FOUND')
+    }
+
+    if (!packageData.is_accessible) {
+      throw new AppError(
+        'You do not have access to this tryout',
+        403,
+        'TRYOUT_ACCESS_DENIED'
+      )
+    }
+
     /*
-     * Cari attempt yang masih aktif.
+     * Resume tidak mengubah started_at maupun expires_at.
      */
     const activeAttemptResult =
       await client.query(
@@ -259,6 +280,47 @@ export const startTryoutAttempt = async ({
         ),
         resumed: true,
       }
+    }
+
+    // Schedule hanya membatasi pembuatan attempt baru. Gunakan waktu DB
+    // yang sama dengan perhitungan expires_at, termasuk batas yang inklusif.
+    const scheduleResult = await client.query(
+      `
+        SELECT
+          start_at > CURRENT_TIMESTAMP AS not_started,
+          end_at < CURRENT_TIMESTAMP AS ended
+        FROM tryout_packages
+        WHERE id = $1
+      `,
+      [tryoutPackageId]
+    )
+
+    const schedule = scheduleResult.rows[0]
+
+    if (schedule.not_started) {
+      throw new AppError(
+        'Tryout belum dimulai sesuai jadwal.',
+        409,
+        'TRYOUT_NOT_STARTED'
+      )
+    }
+
+    if (schedule.ended) {
+      throw new AppError(
+        'Periode memulai tryout telah berakhir.',
+        409,
+        'TRYOUT_SCHEDULE_ENDED'
+      )
+    }
+
+    const durationMinutes = Number(packageData.duration_minutes)
+
+    if (!Number.isInteger(durationMinutes) || durationMinutes <= 0) {
+      throw new AppError(
+        'Tryout duration is invalid',
+        422,
+        'INVALID_TRYOUT_DURATION'
+      )
     }
 
     /*
@@ -320,8 +382,8 @@ export const startTryoutAttempt = async ({
     /*
      * Buat attempt baru.
      *
-     * expires_at dihitung oleh PostgreSQL,
-     * bukan frontend.
+     * expires_at dihitung oleh PostgreSQL dengan durasi penuh.
+     * end_at paket tidak memotong waktu attempt yang sudah dimulai.
      */
 
     const insertResult = await client.query(

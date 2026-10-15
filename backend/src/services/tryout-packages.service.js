@@ -29,6 +29,7 @@ import {
 } from '../repositories/tryout-packages-relation.repository.js';
 
 import { AppError } from '../utils/app-error.js';
+import { validatePackageSchedule } from '../validators/tryout-packages.validator.js';
 
 const getCategories = async (client, categoryIds) => {
   const { rows } = await client.query(
@@ -251,6 +252,8 @@ export const getPackageById = async (id) => {
 };
 
 export const createTryoutPackage = async (payload) => {
+  validatePackageSchedule(payload)
+
   console.log('PASSING RULES INPUT:', {
     passingMode: payload.passingMode,
     passingScore: payload.passingScore,
@@ -370,6 +373,9 @@ export const updateTryoutPackage = async (
         'PACKAGE_NOT_FOUND'
       )
     }
+
+    // Validasi tanggal baru bersama tanggal lama yang tidak dikirim.
+    validatePackageSchedule(payload, existingPackage)
 
     // 2. Ambil relasi saat ini dalam transaksi
     const relations = await getPackageRelations(

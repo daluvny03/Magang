@@ -236,6 +236,12 @@ function TryoutDetailPage() {
                 </div>
 
                 <div className="mt-6 border-t border-gray-100 pt-5">
+                    {startTryoutMutation.isError && (
+                        <p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+                            {startTryoutMutation.error?.response?.data?.message ||
+                                'Gagal memulai atau melanjutkan tryout. Silakan coba kembali.'}
+                        </p>
+                    )}
                     {tryout.isAccessible ? (
                         <button
                             type="button"

@@ -60,9 +60,14 @@ export const findAvailableTryoutsForUser = async (
 
 export const findAvailableTryoutByIdForUser = async (
   userId,
-  tryoutId
+  tryoutId,
+  {
+    client = pool,
+    ignoreSchedule = false,
+    lockPackage = false,
+  } = {}
 ) => {
-  const { rows } = await pool.query(
+  const { rows } = await client.query(
     `
       SELECT
         tp.id,
@@ -100,7 +105,7 @@ export const findAvailableTryoutByIdForUser = async (
       WHERE tp.id = $2
         AND tp.status = 'published'
 
-        AND (
+        ${ignoreSchedule ? '' : `AND (
           tp.start_at IS NULL
           OR tp.start_at <= CURRENT_TIMESTAMP
         )
@@ -108,9 +113,10 @@ export const findAvailableTryoutByIdForUser = async (
         AND (
           tp.end_at IS NULL
           OR tp.end_at >= CURRENT_TIMESTAMP
-        )
+        )`}
 
       LIMIT 1
+      ${lockPackage ? 'FOR SHARE OF tp' : ''}
     `,
     [userId, tryoutId]
   )

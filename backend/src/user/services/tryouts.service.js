@@ -59,51 +59,9 @@ export const startTryoutForUser = async (
   userId,
   tryoutId
 ) => {
-  const row = await findAvailableTryoutByIdForUser(
+  // Publish, subscription, resume, dan schedule diperiksa dalam transaksi.
+  return startTryoutAttempt({
     userId,
-    tryoutId
-  )
-
-  if (!row) {
-    const error = new Error('Tryout not found')
-    error.statusCode = 404
-    error.code = 'TRYOUT_NOT_FOUND'
-
-    throw error
-  }
-
-  const tryout = mapTryout(row)
-
-  if (!tryout.isAccessible) {
-    const error = new Error(
-      'You do not have access to this tryout'
-    )
-
-    error.statusCode = 403
-    error.code = 'TRYOUT_ACCESS_DENIED'
-
-    throw error
-  }
-
-  if (
-    !tryout.durationMinutes ||
-    tryout.durationMinutes <= 0
-  ) {
-    const error = new Error(
-      'Tryout duration is invalid'
-    )
-
-    error.statusCode = 422
-    error.code = 'INVALID_TRYOUT_DURATION'
-
-    throw error
-  }
-
-  const result = await startTryoutAttempt({
-    userId,
-    tryoutPackageId: tryout.id,
-    durationMinutes: tryout.durationMinutes,
+    tryoutPackageId: tryoutId,
   })
-
-  return result
 }

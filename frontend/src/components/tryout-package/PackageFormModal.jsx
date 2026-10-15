@@ -39,7 +39,7 @@ const schema = z
     if (
       data.startAt &&
       data.endAt &&
-      new Date(data.endAt) < new Date(data.startAt)
+      new Date(data.endAt) <= new Date(data.startAt)
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -320,7 +320,10 @@ function PackageFormModal({
         </SectionCard>
 
         {/* Schedule */}
-        <SectionCard title="Schedule">
+        <SectionCard
+          title="Schedule"
+          description="Jadwal membatasi waktu memulai ujian baru. Peserta yang sudah mulai tetap mendapat durasi penuh. Kosongkan tanggal jika tidak ada batas."
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <FormField
               label="Start At"
