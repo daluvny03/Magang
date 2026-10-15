@@ -21,6 +21,40 @@ function QuestionPanel({
                 </span>
             </div>
 
+            {Array.isArray(question.categoryPath) &&
+                question.categoryPath.length > 0 && (
+                    <nav
+                        aria-label="Kategori soal"
+                        className="mt-5 flex flex-wrap items-center gap-2"
+                    >
+                        {question.categoryPath.map((category, index) => (
+                            <span
+                                key={`${index}-${category}`}
+                                className="flex items-center gap-2"
+                            >
+                                {index > 0 && (
+                                    <span
+                                        aria-hidden="true"
+                                        className="text-gray-400"
+                                    >
+                                        →
+                                    </span>
+                                )}
+
+                                <span
+                                    className={
+                                        index === 0
+                                            ? 'rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700'
+                                            : 'text-xs font-medium text-gray-600'
+                                    }
+                                >
+                                    {category}
+                                </span>
+                            </span>
+                        ))}
+                    </nav>
+                )}
+
             <div className="pt-6">
                 {question.questionImage && (
                     <img
@@ -52,14 +86,14 @@ function QuestionPanel({
                                         )
                                     }
                                     className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left transition disabled:cursor-wait disabled:opacity-70 ${isSelected
-                                            ? 'border-blue-500 bg-blue-50'
-                                            : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-gray-50'
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-gray-50'
                                         }`}
                                 >
                                     <span
                                         className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold ${isSelected
-                                                ? 'border-blue-600 bg-blue-600 text-white'
-                                                : 'border-gray-200 bg-gray-50 text-gray-700'
+                                            ? 'border-blue-600 bg-blue-600 text-white'
+                                            : 'border-gray-200 bg-gray-50 text-gray-700'
                                             }`}
                                     >
                                         {option.key}

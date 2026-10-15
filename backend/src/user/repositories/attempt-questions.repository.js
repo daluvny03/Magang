@@ -16,6 +16,7 @@ const mapAttemptQuestion = (row) => ({
   questionOrder: row.question_order,
   questionText: row.question_text,
   questionImage: row.question_image,
+  categoryPath: row.category_path || [],
   answerOptions: sanitizeAnswerOptions(
     row.answer_options
   ),
@@ -61,8 +62,33 @@ export const findQuestionsByAttemptId = async ({
     }
   }
 
-  const questionsResult = await pool.query(
+const questionsResult = await pool.query(
   `
+    WITH RECURSIVE category_hierarchy AS (
+      SELECT
+        c.id AS origin_category_id,
+        c.id,
+        c.name,
+        c.parent_id,
+        0 AS depth
+
+      FROM categories c
+
+      UNION ALL
+
+      SELECT
+        ch.origin_category_id,
+        parent.id,
+        parent.name,
+        parent.parent_id,
+        ch.depth + 1
+
+      FROM category_hierarchy ch
+
+      INNER JOIN categories parent
+        ON parent.id = ch.parent_id
+    )
+
     SELECT
       q.id,
       q.question_text,
@@ -71,10 +97,22 @@ export const findQuestionsByAttemptId = async ({
       tpq.question_order,
       ta_answer.selected_answer,
 
-    COALESCE(
+      COALESCE(
         ta_answer.is_doubtful,
         FALSE
-    ) AS is_doubtful
+      ) AS is_doubtful,
+
+      COALESCE(
+        (
+          SELECT json_agg(
+            ch.name
+            ORDER BY ch.depth DESC
+          )
+          FROM category_hierarchy ch
+          WHERE ch.origin_category_id = q.category_id
+        ),
+        '[]'::json
+      ) AS category_path
 
     FROM tryout_package_questions tpq
 
@@ -86,7 +124,7 @@ export const findQuestionsByAttemptId = async ({
       AND ta_answer.question_id = q.id
 
     WHERE tpq.tryout_package_id = $1
-      AND q.is_active = true
+      AND q.is_active = TRUE
 
     ORDER BY
       tpq.question_order ASC,
