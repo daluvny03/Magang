@@ -3,7 +3,6 @@ import {
   BookOpen,
   Clock3,
   Lock,
-  Play,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
@@ -155,6 +154,14 @@ function DashboardPage() {
                       {tryout.description ||
                         'Latihan simulasi untuk membantu persiapan seleksi CPNS.'}
                     </p>
+
+                    <p className="mt-3 text-sm font-medium text-gray-600">
+                      {{
+                        upcoming: 'Belum dimulai',
+                        active: 'Periode aktif',
+                        ended: 'Periode mulai berakhir',
+                      }[tryout.scheduleStatus] || 'Jadwal belum tersedia'}
+                    </p>
                   </div>
 
                   <div className="mt-5 flex items-center gap-4 border-t border-gray-100 pt-4 text-sm text-gray-500">
@@ -172,6 +179,7 @@ function DashboardPage() {
                   <button
                     type="button"
                     disabled={!tryout.isAccessible}
+                    onClick={() => navigate(`/user/tryouts/${tryout.id}`)}
                     className={`mt-5 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                       tryout.isAccessible
                         ? 'bg-primary-600 text-white hover:bg-primary-700'
@@ -180,8 +188,8 @@ function DashboardPage() {
                   >
                     {tryout.isAccessible ? (
                       <>
-                        <Play size={16} />
-                        Mulai Tryout
+                        <ArrowRight size={16} />
+                        Lihat Detail
                       </>
                     ) : (
                       <>

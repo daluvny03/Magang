@@ -15,6 +15,23 @@ import {
 import { useTryoutDetail } from '../hooks/useTryoutDetail'
 import { useStartTryout } from '../hooks/useStartTryout'
 
+const formatScheduleDate = (value, emptyLabel) => {
+    if (!value) return emptyLabel
+
+    const date = new Date(value)
+    if (!Number.isFinite(date.getTime())) return 'Tanggal tidak tersedia'
+
+    return `${date.toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    })} WIB`
+}
+
 function TryoutDetailPage() {
     const navigate = useNavigate()
     const startTryoutMutation =
@@ -26,6 +43,8 @@ function TryoutDetailPage() {
         isLoading,
         isError,
         error,
+        isFetching,
+        refetch,
     } = useTryoutDetail(tryoutId)
 
     const tryout = tryoutResponse?.data
@@ -54,6 +73,8 @@ function TryoutDetailPage() {
                 'Failed to start tryout:',
                 error
             )
+            // Muat ulang hak akses, jadwal, dan attempt setelah penolakan server.
+            await refetch()
         }
     }
 
@@ -92,6 +113,16 @@ function TryoutDetailPage() {
     }
 
     if (!tryout) return null
+
+    const hasActiveAttempt = Boolean(tryout.activeAttempt?.id)
+    const canStartOrResume = tryout.isAccessible && (
+        hasActiveAttempt || tryout.scheduleStatus === 'active'
+    )
+    const scheduleLabel = {
+        upcoming: 'Belum dimulai',
+        active: 'Periode aktif',
+        ended: 'Periode mulai berakhir',
+    }[tryout.scheduleStatus] || 'Jadwal belum tersedia'
 
     return (
         <div className="mx-auto max-w-5xl space-y-6">
@@ -183,6 +214,45 @@ function TryoutDetailPage() {
                 </div>
             </section>
 
+            <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-lg font-bold text-gray-900">
+                        Jadwal Mulai Tryout
+                    </h2>
+                    <span className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700">
+                        {scheduleLabel}
+                    </span>
+                </div>
+
+                <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+                    <div>
+                        <dt className="text-gray-500">Mulai tersedia</dt>
+                        <dd className="mt-1 font-medium text-gray-900">
+                            {formatScheduleDate(tryout.startAt, 'Tanpa batas awal')}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt className="text-gray-500">Batas memulai ujian baru</dt>
+                        <dd className="mt-1 font-medium text-gray-900">
+                            {formatScheduleDate(tryout.endAt, 'Tanpa batas akhir')}
+                        </dd>
+                    </div>
+                </dl>
+
+                <p className="mt-4 text-sm leading-6 text-gray-500">
+                    Jadwal membatasi waktu memulai ujian baru. Ujian yang sudah
+                    dimulai tetap mendapat durasi penuh.
+                </p>
+
+                {hasActiveAttempt && tryout.isAccessible && (
+                    <p className="mt-3 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-blue-700">
+                        Kamu memiliki ujian yang masih berjalan hingga{' '}
+                        {formatScheduleDate(tryout.activeAttempt.expiresAt, 'batas waktu ujian')}.
+                        {' '}Melanjutkan ujian tidak mengulang timer.
+                    </p>
+                )}
+            </section>
+
             {/* Preparation */}
             <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
                 <div className="flex items-start gap-3">
@@ -246,14 +316,18 @@ function TryoutDetailPage() {
                         <button
                             type="button"
                             onClick={handleStartTryout}
-                            disabled={startTryoutMutation.isPending}
+                            disabled={!canStartOrResume || startTryoutMutation.isPending || isFetching}
                             className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                         >
                             <Play size={17} />
 
                             {startTryoutMutation.isPending
-                                ? 'Memulai...'
-                                : 'Mulai Tryout'}
+                                ? (hasActiveAttempt ? 'Melanjutkan...' : 'Memulai...')
+                                : hasActiveAttempt
+                                    ? 'Lanjutkan Tryout'
+                                    : tryout.scheduleStatus === 'active'
+                                        ? 'Mulai Tryout'
+                                        : scheduleLabel}
                         </button>
                     ) : (
                         <div className="rounded-xl bg-gray-50 p-4 text-center">

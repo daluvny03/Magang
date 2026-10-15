@@ -18,6 +18,12 @@ export const findAvailableTryoutsForUser = async (
         tp.end_at,
 
         CASE
+          WHEN tp.start_at > CURRENT_TIMESTAMP THEN 'upcoming'
+          WHEN tp.end_at < CURRENT_TIMESTAMP THEN 'ended'
+          ELSE 'active'
+        END AS schedule_status,
+
+        CASE
           WHEN tp.is_free = true THEN true
 
           WHEN EXISTS (
@@ -39,16 +45,6 @@ export const findAvailableTryoutsForUser = async (
       FROM tryout_packages tp
 
       WHERE tp.status = 'published'
-
-        AND (
-          tp.start_at IS NULL
-          OR tp.start_at <= CURRENT_TIMESTAMP
-        )
-
-        AND (
-          tp.end_at IS NULL
-          OR tp.end_at >= CURRENT_TIMESTAMP
-        )
 
       ORDER BY tp.id ASC
     `,
@@ -80,6 +76,12 @@ export const findAvailableTryoutByIdForUser = async (
         tp.is_free,
         tp.start_at,
         tp.end_at,
+
+        CASE
+          WHEN tp.start_at > CURRENT_TIMESTAMP THEN 'upcoming'
+          WHEN tp.end_at < CURRENT_TIMESTAMP THEN 'ended'
+          ELSE 'active'
+        END AS schedule_status,
 
         CASE
           WHEN tp.is_free = true THEN true

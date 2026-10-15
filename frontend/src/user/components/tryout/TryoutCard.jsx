@@ -6,6 +6,12 @@ import {
 } from 'lucide-react'
 
 function TryoutCard({ tryout, onDetail }) {
+  const scheduleLabel = {
+    upcoming: 'Belum dimulai',
+    active: 'Periode aktif',
+    ended: 'Periode mulai berakhir',
+  }[tryout.scheduleStatus] || 'Jadwal belum tersedia'
+
   return (
     <article className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-primary-200 hover:shadow-sm">
       {/* Header */}
@@ -39,6 +45,9 @@ function TryoutCard({ tryout, onDetail }) {
 
       {/* Information */}
       <div className="mt-5 space-y-3 border-t border-gray-100 pt-4">
+        <p className="text-sm font-medium text-gray-600">
+          {scheduleLabel}
+        </p>
         <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-500">
           <span className="flex items-center gap-1.5">
             <Clock3 size={16} />

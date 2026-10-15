@@ -4,6 +4,7 @@ import {
 } from '../repositories/tryouts.repository.js'
 
 import {
+  findActiveTryoutAttempt,
   startTryoutAttempt,
 } from '../repositories/attempts.repository.js'
 
@@ -22,6 +23,7 @@ const mapTryout = (row) => ({
   isFree: row.is_free,
   startAt: row.start_at,
   endAt: row.end_at,
+  scheduleStatus: row.schedule_status,
   isAccessible: row.is_accessible
 });
 
@@ -41,7 +43,8 @@ export const getAvailableTryoutByIdForUser = async (
 ) => {
   const row = await findAvailableTryoutByIdForUser(
     userId,
-    tryoutId
+    tryoutId,
+    { ignoreSchedule: true }
   )
 
   if (!row) {
@@ -52,7 +55,21 @@ export const getAvailableTryoutByIdForUser = async (
     )
   }
 
-  return mapTryout(row)
+  // Hanya baca attempt milik peserta ini; tidak mengubah status attempt.
+  const activeAttempt = await findActiveTryoutAttempt({
+    userId,
+    tryoutPackageId: row.id,
+  })
+
+  return {
+    ...mapTryout(row),
+    activeAttempt: activeAttempt
+      ? {
+          id: activeAttempt.id,
+          expiresAt: activeAttempt.expiresAt,
+        }
+      : null,
+  }
 }
 
 export const startTryoutForUser = async (
