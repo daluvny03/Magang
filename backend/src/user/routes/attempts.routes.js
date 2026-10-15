@@ -29,12 +29,26 @@ import {
   validateHistoryQuery,
 } from '../middlewares/validate-history-query.middleware.js'
 
+import {
+  getAttemptAnalysis,
+} from '../controllers/attempt-analysis.controller.js'
+
+import {
+  validateAnalysisParams,
+} from '../middlewares/validate-analysis-params.middleware.js'
+
 const router = Router()
 
 router.get(
   '/history',
   validateHistoryQuery,
   getAttemptHistory
+)
+
+router.get(
+  '/:attemptId/analysis',
+  validateAnalysisParams,
+  getAttemptAnalysis
 )
 
 router.get(

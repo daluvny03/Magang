@@ -6,6 +6,7 @@ import { useAttemptResult } from '../hooks/useAttemptResult'
 
 import ResultInformationCard from '../components/result/ResultInformationCard'
 import CategoryResultCard from '../components/result/CategoryResultCard'
+import ResultAnalysisSection from '../components/analysis/ResultAnalysisSection'
 
 function ResultPage() {
     const { attemptId } = useParams()
@@ -105,7 +106,6 @@ function ResultPage() {
                 summary={summary}
             />
 
-            {/* Section 6C.4 */}
             <section
                 aria-labelledby="category-result-heading"
                 className="space-y-4"
@@ -139,19 +139,25 @@ function ResultPage() {
                 )}
             </section>
 
-            {/* Section 6H */}
             <section
-                aria-label="Detail pembahasan"
-                className="rounded-xl border border-gray-200 bg-white p-6"
+                aria-labelledby="result-analysis-heading"
+                className="space-y-5"
             >
-                <h2 className="text-lg font-semibold text-gray-900">
-                    Detail Pembahasan & Analisis
-                </h2>
+                <div>
+                    <h2
+                        id="result-analysis-heading"
+                        className="text-xl font-bold text-slate-900"
+                    >
+                        Analisis Hasil Tryout
+                    </h2>
 
-                <p className="mt-2 text-sm text-gray-500">
-                    Pembahasan, jawaban, dan waktu pengerjaan
-                    setiap soal akan ditampilkan di sini.
-                </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                        Evaluasi performa, ketepatan jawaban,
+                        dan pembahasan setiap soal.
+                    </p>
+                </div>
+
+                <ResultAnalysisSection attemptId={attemptId} />
             </section>
         </div>
     )
