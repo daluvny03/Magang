@@ -222,7 +222,7 @@ export const updateQuestion = async ({
 
     const questionResult = await client.query(
       `
-        SELECT id
+        SELECT id, answer_options
         FROM questions
         WHERE id = $1
         FOR UPDATE
@@ -249,6 +249,18 @@ export const updateQuestion = async ({
       )
     }
 
+    // Keep existing option scores when an older client omits them.
+    const existingOptions = questionResult.rows[0].answer_options || []
+    const optionsWithScores = answerOptions.map((option) => {
+      const existingOption = existingOptions.find((item) => item.key === option.key)
+      return {
+        ...option,
+        ...(option.score === undefined && existingOption?.score !== undefined
+          ? { score: existingOption.score }
+          : {}),
+      }
+    })
+
     const result = await client.query(
       `
         UPDATE questions
@@ -270,7 +282,7 @@ export const updateQuestion = async ({
         categoryId,
         questionText,
         questionImage ?? null,
-        JSON.stringify(answerOptions),
+        JSON.stringify(optionsWithScores),
         correctAnswer,
         JSON.stringify(explanation),
         score,

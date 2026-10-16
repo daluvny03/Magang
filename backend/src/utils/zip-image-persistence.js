@@ -102,6 +102,7 @@ export const persistQuestionImages =
         answerOptions.push({
           key: option.key,
           text: option.text,
+          ...(option.score !== undefined ? { score: option.score } : {}),
           image
         });
       }

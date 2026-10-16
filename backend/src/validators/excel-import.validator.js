@@ -13,6 +13,11 @@ export const REQUIRED_HEADERS = [
 ];
 
 export const OPTIONAL_HEADERS = [
+  'option_a_score',
+  'option_b_score',
+  'option_c_score',
+  'option_d_score',
+  'option_e_score',
   'subcategory',
   'chapter',
   'explanation_detail',
@@ -29,6 +34,29 @@ export const ALL_HEADERS = [
   ...REQUIRED_HEADERS,
   ...OPTIONAL_HEADERS
 ];
+
+export const validateImportOptionScores = (row, rowNumber, isTKP) => {
+  const errors = [];
+
+  for (const key of ['a', 'b', 'c', 'd', 'e']) {
+    const field = `option_${key}_score`;
+    const value = String(row[field] ?? '').trim();
+
+    if (!value) {
+      if (isTKP) {
+        errors.push({ row: rowNumber, field, message: `TKP option ${key.toUpperCase()} score is required` });
+      }
+      continue;
+    }
+
+    const score = Number(value);
+    if (!Number.isInteger(score) || score < 0 || score > 5) {
+      errors.push({ row: rowNumber, field, message: 'Option score must be an integer between 0 and 5' });
+    }
+  }
+
+  return errors;
+};
 
 export const normalizeHeader = (header) => {
   return String(header)

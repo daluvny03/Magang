@@ -180,6 +180,7 @@ function QuestionPage() {
                 values.answerOptions.map(
                     (option) => ({
                         key: option.key,
+                        ...(option.score !== undefined ? { score: option.score } : {}),
 
                         text:
                             option.text?.trim() ||

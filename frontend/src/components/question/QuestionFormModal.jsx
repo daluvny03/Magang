@@ -23,6 +23,7 @@ import {
 const answerOptionSchema = z.object({
   key: z.string(),
   text: z.string(),
+  score: z.number().int().min(0).max(5).optional(),
   image: z.string().nullable().optional(),
   imageFile: z.any().nullable().optional(),
   removeImage: z.boolean().optional().default(false),
@@ -122,6 +123,7 @@ const normalizeQuestionForForm = (q) => ({
     ? q.answerOptions.map((o, i) => ({
         key: o.key || String.fromCharCode(65 + i),
         text: o.text || '',
+        ...(o.score != null ? { score: Number(o.score) } : {}),
         image: o.image || null,
         imageFile: null,
         removeImage: false,

@@ -27,7 +27,11 @@ function TryoutCard({ tryout, onDetail }) {
               : 'bg-primary-50 text-primary-700'
           }`}
         >
-          {tryout.isFree ? 'Gratis' : 'Premium'}
+          {tryout.isFree
+            ? 'Gratis'
+            : tryout.isAccessible
+              ? 'Premium'
+              : 'Tingkatkan Subscription'}
         </span>
       </div>
 

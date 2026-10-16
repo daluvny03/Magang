@@ -5,6 +5,7 @@ import {
 import {
   validateHeaders,
   validateImportRow,
+  validateImportOptionScores,
   detectDuplicateRows
 } from '../validators/excel-import.validator.js';
 
@@ -57,7 +58,7 @@ const findCategoryHierarchy = async ({
     return null;
   }
   if (!subcategory) {
-    return rootCategory;
+    return { ...rootCategory, rootSlug: rootCategory.slug };
   }
 
   const subCategory =
@@ -71,13 +72,17 @@ const findCategoryHierarchy = async ({
   }
 
   if (!chapter) {
-    return subCategory;
+    return { ...subCategory, rootSlug: rootCategory.slug };
   }
 
-  return findCategoryByNameAndParent({
+  const chapterCategory = await findCategoryByNameAndParent({
     name: chapter,
     parentId: subCategory.id
   });
+
+  return chapterCategory
+    ? { ...chapterCategory, rootSlug: rootCategory.slug }
+    : null;
 };
 
 const transformRow = async (row, rowNumber) => {
@@ -106,6 +111,16 @@ const transformRow = async (row, rowNumber) => {
     };
   }
 
+  const scoreErrors = validateImportOptionScores(
+    row,
+    rowNumber,
+    resolvedCategory.rootSlug === 'tkp'
+  );
+
+  if (scoreErrors.length > 0) {
+    return { rowNumber, valid: false, errors: scoreErrors };
+  }
+
   return {
     rowNumber,
     valid: true,
@@ -117,43 +132,17 @@ const transformRow = async (row, rowNumber) => {
       questionImageName:
         normalize(row.question_image) || null,
 
-        answerOptions: [
-        {
-            key: 'A',
-            text: normalize(row.option_a),
-            imageName:
-            normalize(row.option_a_image) ||
-            null
-        },
-        {
-            key: 'B',
-            text: normalize(row.option_b),
-            imageName:
-            normalize(row.option_b_image) ||
-            null
-        },
-        {
-            key: 'C',
-            text: normalize(row.option_c),
-            imageName:
-            normalize(row.option_c_image) ||
-            null
-        },
-        {
-            key: 'D',
-            text: normalize(row.option_d),
-            imageName:
-            normalize(row.option_d_image) ||
-            null
-        },
-        {
-            key: 'E',
-            text: normalize(row.option_e),
-            imageName:
-            normalize(row.option_e_image) ||
-            null
-        }
-        ],
+      answerOptions: ['A', 'B', 'C', 'D', 'E'].map((key) => {
+        const prefix = `option_${key.toLowerCase()}`;
+        const optionScore = normalize(row[`${prefix}_score`]);
+
+        return {
+          key,
+          text: normalize(row[prefix]),
+          imageName: normalize(row[`${prefix}_image`]) || null,
+          ...(optionScore !== '' ? { score: Number(optionScore) } : {})
+        };
+      }),
 
       correctAnswer: normalize(
         row.correct_answer

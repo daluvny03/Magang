@@ -141,7 +141,9 @@ function DashboardPage() {
                     >
                       {tryout.isFree
                         ? 'Gratis'
-                        : 'Premium'}
+                        : tryout.isAccessible
+                          ? 'Premium'
+                          : 'Tingkatkan Subscription'}
                     </span>
                   </div>
 
