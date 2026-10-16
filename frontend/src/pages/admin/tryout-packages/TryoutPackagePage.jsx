@@ -56,6 +56,7 @@ function TryoutPackagePage() {
   const {
     data: detailResponse,
     isLoading: isDetailLoading,
+    isError: isDetailError,
   } = useTryoutPackage(selectedId, needsDetail)
 
   const { data: categoryResponse, isLoading: categoriesLoading } = useCategories({ page: 1, limit: 100 })
@@ -76,7 +77,9 @@ function TryoutPackagePage() {
   const packageData = detailResponse?.data || null
 
   const isSaving = createMutation.isPending || updateMutation.isPending
-  const isReferenceLoading = categoriesLoading || tiersLoading || (formMode === 'edit' && isDetailLoading)
+  const isReferenceLoading = formMode === 'edit'
+    ? isDetailLoading || !packageData || isDetailError
+    : categoriesLoading || tiersLoading
 
   const handleOpenCreate = () => {
     createMutation.reset()
@@ -124,7 +127,9 @@ function TryoutPackagePage() {
   })
 
   const handleSubmit = async (values) => {
-    const payload = normalizePayload(values)
+    const payload = formMode === 'edit'
+      ? { name: values.name.trim() }
+      : normalizePayload(values)
 
     try {
       if (formMode === 'edit') {
@@ -165,6 +170,10 @@ function TryoutPackagePage() {
   }
 
   const getServerErrors = () => {
+    if (formMode === 'edit' && isDetailError) {
+      return { general: 'Failed to load package. Close this form and try again.' }
+    }
+
     const mutation = formMode === 'edit' ? updateMutation : createMutation
     const data = mutation.error?.response?.data
     if (!data) return {}

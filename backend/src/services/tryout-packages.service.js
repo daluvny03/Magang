@@ -374,6 +374,42 @@ export const updateTryoutPackage = async (
       )
     }
 
+    if (
+      payload.name !== undefined &&
+      payload.name !== existingPackage.name
+    ) {
+      const duplicatePackage = await findPackageByName(payload.name)
+
+      if (
+        duplicatePackage &&
+        Number(duplicatePackage.id) !== Number(id)
+      ) {
+        throw new AppError(
+          'Tryout package name is already registered',
+          409,
+          'PACKAGE_NAME_ALREADY_EXISTS'
+        )
+      }
+    }
+
+    // Rename does not revalidate or rewrite existing exam configuration.
+    if (
+      payload.name !== undefined &&
+      Object.keys(payload).length === 1
+    ) {
+      await client.query(
+        `
+          UPDATE tryout_packages
+          SET name = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = $2
+        `,
+        [payload.name, id]
+      )
+
+      await client.query('COMMIT')
+      return getPackageById(id)
+    }
+
     // Validasi tanggal baru bersama tanggal lama yang tidak dikirim.
     validatePackageSchedule(payload, existingPackage)
 
@@ -434,29 +470,6 @@ export const updateTryoutPackage = async (
       subscriptionTierIds:
         payload.subscriptionTierIds ??
         currentTierIds,
-    }
-
-    // 4. Periksa perubahan nama
-    if (
-      validatedPayload.name !== undefined &&
-      validatedPayload.name !==
-        existingPackage.name
-    ) {
-      const duplicatePackage =
-        await findPackageByName(
-          validatedPayload.name
-        )
-
-      if (
-        duplicatePackage &&
-        Number(duplicatePackage.id) !== Number(id)
-      ) {
-        throw new AppError(
-          'Tryout package name is already registered',
-          409,
-          'PACKAGE_NAME_ALREADY_EXISTS'
-        )
-      }
     }
 
     // 5. Bandingkan konfigurasi

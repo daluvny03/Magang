@@ -148,6 +148,7 @@ export const createPackageSchema =
 export const updatePackageSchema = Joi.object({
   ...baseFields,
 })
+  .prefs({ noDefaults: true })
   .fork(
     Object.keys(baseFields),
     (schema) => schema.optional()

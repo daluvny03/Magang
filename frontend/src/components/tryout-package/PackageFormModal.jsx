@@ -64,13 +64,11 @@ const emptyValues = {
   subscriptionTierIds: [],
 }
 
-const toDateTimeLocal = (value) => {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const offset = date.getTimezoneOffset()
-  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16)
-}
+const editSchema = z.object({
+  name: z.string().trim()
+    .min(3, 'Package name must be at least 3 characters')
+    .max(200, 'Package name must be at most 200 characters'),
+})
 
 function PackageFormModal({
   isOpen,
@@ -96,11 +94,11 @@ function PackageFormModal({
     control,
     formState: { errors },
   } = useForm({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(isEdit ? editSchema : schema),
     defaultValues: emptyValues,
   })
 
-  const name = watch('name')
+  const name = watch('name') || ''
   const slug = watch('slug')
   const status = watch('status')
   const isFree = watch('isFree')
@@ -125,26 +123,9 @@ function PackageFormModal({
     if (!isOpen) return
     setCategorySearch('')
 
-    if (isEdit && packageData) {
+    if (isEdit) {
       reset({
-        name: packageData.name || '',
-        slug: packageData.slug || '',
-        description: packageData.description || '',
-        durationMinutes: Number(packageData.durationMinutes ?? 100),
-        passingScore: Number(packageData.passingScore ?? 0),
-        status: packageData.status || 'draft',
-        isFree: Boolean(packageData.isFree),
-        startAt: toDateTimeLocal(packageData.startAt),
-        endAt: toDateTimeLocal(packageData.endAt),
-        categoryIds: (packageData.categories || []).map((item) =>
-          String(item.id)
-        ),
-        questionIds: (packageData.questions || []).map((item) =>
-          String(item.id)
-        ),
-        subscriptionTierIds: (packageData.subscriptionTiers || []).map(
-          (item) => String(item.id)
-        ),
+        name: packageData?.name || '',
       })
     } else {
       reset(emptyValues)
@@ -165,12 +146,69 @@ function PackageFormModal({
   const tierError =
     errors.subscriptionTierIds?.message || serverErrors.subscriptionTierIds
 
+  if (isEdit) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={isSubmitting ? undefined : onClose}
+        size="md"
+        title="Edit Tryout Package"
+        description="Ubah nama paket. Kelola kategori, soal, dan subscription tier melalui Manage pada detail paket."
+        footer={
+          <>
+            <Button variant="soft" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="package-form"
+              disabled={isSubmitting || isReferenceLoading}
+            >
+              {isSubmitting ? 'Saving...' : 'Update Package'}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="package-form"
+          onSubmit={handleSubmit((values) => {
+            if (isSubmitting || isReferenceLoading) return
+            return onSubmit(values)
+          })}
+          className="space-y-5"
+        >
+          {serverErrors.general && (
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {serverErrors.general}
+            </div>
+          )}
+          {isReferenceLoading && !serverErrors.general && (
+            <p role="status" className="text-sm text-gray-500">Loading package...</p>
+          )}
+          <FormField
+            label="Package Name"
+            htmlFor="pkg-name"
+            error={errors.name?.message || serverErrors.name}
+          >
+            <Input
+              id="pkg-name"
+              {...register('name')}
+              disabled={isSubmitting || isReferenceLoading}
+              error={errors.name || serverErrors.name}
+              placeholder="Tryout SKD Paket 1"
+            />
+          </FormField>
+        </form>
+      </Modal>
+    )
+  }
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={isSubmitting ? undefined : onClose}
       size="2xl"
-      title={isEdit ? 'Edit Tryout Package' : 'Add Tryout Package'}
+      title="Add Tryout Package"
       description="Complete package information and minimum required assignments."
       footer={
         <>
@@ -182,11 +220,7 @@ function PackageFormModal({
             form="package-form"
             disabled={isSubmitting || isReferenceLoading}
           >
-            {isSubmitting
-              ? 'Saving...'
-              : isEdit
-                ? 'Update Package'
-                : 'Create Package'}
+            {isSubmitting ? 'Saving...' : 'Create Package'}
           </Button>
         </>
       }
