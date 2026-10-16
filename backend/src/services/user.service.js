@@ -10,14 +10,14 @@ import {
 export const getUsers = async ({
   page,
   limit,
-  search,
-  role
+  search
 }) => {
+  // User Management monitors subscriptions for user accounts only.
   const result = await findUsers({
     page,
     limit,
     search,
-    role
+    role: 'user'
   });
 
   return {

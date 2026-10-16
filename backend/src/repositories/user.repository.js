@@ -127,8 +127,8 @@ export const findUsers = async ({
 
     conditions.push(`
       (
-        name ILIKE $${values.length}
-        OR email ILIKE $${values.length}
+        u.name ILIKE $${values.length}
+        OR u.email ILIKE $${values.length}
       )
     `);
   }
@@ -137,7 +137,7 @@ export const findUsers = async ({
     values.push(role);
 
     conditions.push(
-      `role = $${values.length}`
+      `u.role = $${values.length}`
     );
   }
 
@@ -148,7 +148,7 @@ export const findUsers = async ({
 
   const countQuery = `
     SELECT COUNT(*)::int AS total
-    FROM users
+    FROM users u
     ${whereClause}
   `;
 
@@ -161,18 +161,67 @@ export const findUsers = async ({
   const offsetIndex = dataValues.length;
 
   const dataQuery = `
+    WITH paginated_users AS (
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.role,
+        u.created_at,
+        u.updated_at
+      FROM users u
+      ${whereClause}
+      ORDER BY u.created_at DESC, u.id DESC
+      LIMIT $${limitIndex}
+      OFFSET $${offsetIndex}
+    )
     SELECT
-      id,
-      name,
-      email,
-      role,
-      created_at,
-      updated_at
-    FROM users
-    ${whereClause}
-    ORDER BY created_at DESC
-    LIMIT $${limitIndex}
-    OFFSET $${offsetIndex}
+      u.id,
+      u.name,
+      u.email,
+      u.role,
+      u.created_at,
+      u.updated_at,
+      selected_subscription.subscription
+    FROM paginated_users u
+    LEFT JOIN LATERAL (
+      SELECT jsonb_build_object(
+        'id', us.id,
+        'status', us.status,
+        'effectiveStatus', CASE
+          WHEN us.status <> 'active' THEN us.status::text
+          WHEN us.expired_at <= CURRENT_TIMESTAMP THEN 'expired'
+          WHEN us.started_at > CURRENT_TIMESTAMP THEN 'upcoming'
+          WHEN us.status = 'active'
+            AND us.started_at <= CURRENT_TIMESTAMP
+            AND us.expired_at > CURRENT_TIMESTAMP THEN 'active'
+          ELSE 'inactive'
+        END,
+        'startedAt', us.started_at,
+        'expiredAt', us.expired_at,
+        'tier', jsonb_build_object(
+          'id', st.id,
+          'name', st.name,
+          'slug', st.slug,
+          'level', st.level
+        )
+      ) AS subscription
+      FROM user_subscriptions us
+      INNER JOIN subscription_tiers st
+        ON st.id = us.subscription_tier_id
+      WHERE us.user_id = u.id
+      ORDER BY
+        (
+          us.status = 'active'
+          AND us.started_at <= CURRENT_TIMESTAMP
+          AND us.expired_at > CURRENT_TIMESTAMP
+        ) DESC NULLS LAST,
+        us.started_at DESC NULLS LAST,
+        us.created_at DESC,
+        us.id DESC
+      LIMIT 1
+    ) selected_subscription ON true
+    ORDER BY u.created_at DESC, u.id DESC
   `;
 
   const [
@@ -191,15 +240,17 @@ export const findUsers = async ({
 
   return {
     rows: dataResult.rows.map(
-      (row) =>
-        createUserModel({
+      (row) => ({
+        ...createUserModel({
           id: row.id,
           name: row.name,
           email: row.email,
           role: row.role,
           createdAt: row.created_at,
           updatedAt: row.updated_at
-        })
+        }),
+        subscription: row.subscription ?? null
+      })
     ),
     total: countResult.rows[0].total,
     page: parsedPage,

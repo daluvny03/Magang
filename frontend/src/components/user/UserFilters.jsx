@@ -5,10 +5,8 @@ import Select from '../ui/Select'
 
 function UserFilters({
   search,
-  role,
   limit,
   onSearchChange,
-  onRoleChange,
   onLimitChange,
   onReset,
 }) {
@@ -27,19 +25,11 @@ function UserFilters({
           </div>
           entries per page
         </div>
-
-        <div className="w-40">
-          <Select value={role} onChange={onRoleChange}>
-            <option value="">All roles</option>
-            <option value="admin">Admin</option>
-            <option value="user">User</option>
-          </Select>
-        </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
         <span className="text-xs text-gray-500">Search:</span>
-        <div className="w-56">
+        <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">
           <Input
             value={search}
             onChange={onSearchChange}

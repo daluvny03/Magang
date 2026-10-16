@@ -1,12 +1,25 @@
-import { Eye } from 'lucide-react'
 import Badge from '../ui/Badge'
 import DataTable from '../ui/DataTable'
-import IconButton from '../ui/IconButton'
 
 const formatDate = (value) =>
-  value ? new Date(value).toLocaleDateString('id-ID') : '-'
+  value
+    ? `${new Date(value).toLocaleString('id-ID', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'Asia/Jakarta',
+      })} WIB`
+    : '—'
 
-function UserTable({ users, onView }) {
+const subscriptionStatuses = {
+  active: { label: 'Aktif', tone: 'green' },
+  expired: { label: 'Kedaluwarsa', tone: 'red' },
+  upcoming: { label: 'Belum dimulai', tone: 'primary' },
+  inactive: { label: 'Nonaktif', tone: 'gray' },
+  cancelled: { label: 'Dibatalkan', tone: 'gray' },
+  canceled: { label: 'Dibatalkan', tone: 'gray' },
+}
+
+function UserTable({ users }) {
   const columns = [
     {
       key: 'name',
@@ -17,27 +30,30 @@ function UserTable({ users, onView }) {
     },
     { key: 'email', header: 'Email' },
     {
-      key: 'role',
-      header: 'Role',
-      render: (u) => (
-        <Badge tone={u.role === 'admin' ? 'primary' : 'gray'}>{u.role}</Badge>
-      ),
+      key: 'subscription',
+      header: 'Subscription',
+      render: (u) => {
+        if (!u.subscription) {
+          return <span>Belum memiliki subscription</span>
+        }
+
+        const status = subscriptionStatuses[u.subscription.effectiveStatus] ?? {
+          label: u.subscription.effectiveStatus || 'Status tidak tersedia',
+          tone: 'gray',
+        }
+
+        return (
+          <div className="flex flex-wrap items-center gap-2">
+            <span>{u.subscription.tier?.name || '—'}</span>
+            <Badge tone={status.tone}>{status.label}</Badge>
+          </div>
+        )
+      },
     },
     {
-      key: 'createdAt',
-      header: 'Joined',
-      render: (u) => formatDate(u.createdAt),
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      hideable: false,
-      className: 'text-right',
-      render: (u) => (
-        <IconButton label="View user" onClick={() => onView(u)}>
-          <Eye size={17} />
-        </IconButton>
-      ),
+      key: 'expiredAt',
+      header: 'Kedaluwarsa',
+      render: (u) => formatDate(u.subscription?.expiredAt),
     },
   ]
 

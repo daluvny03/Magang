@@ -3,7 +3,6 @@ import {
   ChartNoAxesColumn,
   ClipboardCheck,
   Clock3,
-  Timer,
 } from 'lucide-react'
 
 const formatNumber = (value) => {
@@ -120,16 +119,6 @@ function AnalysisSummary({ summary }) {
       ),
       description:
         'Waktu sejak mulai hingga ujian selesai',
-    },
-    {
-      key: 'recorded',
-      icon: Timer,
-      label: 'Waktu Tercatat',
-      value: formatDuration(
-        summary.recordedTimeSeconds
-      ),
-      description:
-        'Akumulasi waktu per soal yang tercatat sistem',
     },
   ]
 
