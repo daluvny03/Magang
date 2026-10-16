@@ -34,10 +34,9 @@ const buildQuestionFormData = (
         String(payload.difficulty),
     )
 
-    formData.append(
-        'isActive',
-        String(payload.isActive),
-    )
+    if (payload.isActive !== undefined) {
+        formData.append('isActive', String(payload.isActive))
+    }
 
     // --------------------------------
     // Explanation
@@ -175,6 +174,11 @@ export const updateQuestion = async (
         formData,
     )
 
+    return response.data
+}
+
+export const updateQuestionStatus = async (id, isActive) => {
+    const response = await api.patch(`/questions/${id}/status`, { isActive })
     return response.data
 }
 

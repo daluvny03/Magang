@@ -4,7 +4,8 @@ import {
   findQuestionByText,
   createQuestion,
   updateQuestion,
-  deactivateQuestion
+  deactivateQuestion,
+  updateQuestionStatus
 } from '../repositories/question.repository.js';
 
 import { findCategoryById } from '../repositories/category.repository.js';
@@ -206,6 +207,20 @@ export const updateExistingQuestion = async ({
     id,
     ...data,
   })
+}
+
+export const changeQuestionStatus = async (id, isActive) => {
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    throw new AppError('Invalid question ID', 422, 'INVALID_QUESTION_ID')
+  }
+
+  const result = await updateQuestionStatus(id, isActive)
+
+  if (!result) {
+    throw new AppError('Question not found', 404, 'QUESTION_NOT_FOUND')
+  }
+
+  return findQuestionById(result.id)
 }
 
 export const removeQuestion = async (id) => {

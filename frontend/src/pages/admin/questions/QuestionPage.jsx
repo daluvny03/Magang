@@ -5,7 +5,7 @@ import Button from '../../../components/ui/Button'
 import Card from '../../../components/ui/Card'
 import { useDebounce } from '../../../hooks/useDebounce'
 
-import QuestionDeleteDialog from '../../../components/question/QuestionDeleteDialog'
+import QuestionStatusDialog from '../../../components/question/QuestionStatusDialog'
 import QuestionFilters from '../../../components/question/QuestionFilters'
 import QuestionFormModal from '../../../components/question/QuestionFormModal'
 import QuestionTable from '../../../components/question/QuestionTable'
@@ -22,7 +22,7 @@ import { flattenCategoryTree } from '../../../utils/flattenCategoryTree'
 
 import {
     useCreateQuestion,
-    useDeleteQuestion,
+    useUpdateQuestionStatus,
     useQuestions,
     useUpdateQuestion,
 } from '../../../hooks/useQuestions'
@@ -42,8 +42,8 @@ function QuestionPage() {
     const [selectedQuestion, setSelectedQuestion] =
         useState(null)
 
-    const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-    const [questionToDelete, setQuestionToDelete] =
+    const [isStatusOpen, setIsStatusOpen] = useState(false)
+    const [questionToUpdateStatus, setQuestionToUpdateStatus] =
         useState(null)
 
     const limit = 20
@@ -95,7 +95,7 @@ function QuestionPage() {
 
     const createMutation = useCreateQuestion()
     const updateMutation = useUpdateQuestion()
-    const deleteMutation = useDeleteQuestion()
+    const statusMutation = useUpdateQuestionStatus()
 
     const questions = questionResponse?.data || []
 
@@ -219,7 +219,6 @@ function QuestionPage() {
                 values.difficulty,
             ),
 
-            isActive: values.isActive,
         }
     }
 
@@ -286,42 +285,42 @@ function QuestionPage() {
         return errors
     }
 
-    const handleOpenDelete = (question) => {
-        setQuestionToDelete(question)
-        setIsDeleteOpen(true)
+    const handleOpenStatus = (question) => {
+        setQuestionToUpdateStatus(question)
+        setIsStatusOpen(true)
     }
 
-    const handleCloseDelete = () => {
-        if (deleteMutation.isPending) {
+    const handleCloseStatus = () => {
+        if (statusMutation.isPending) {
             return
         }
 
-        setIsDeleteOpen(false)
-        setQuestionToDelete(null)
+        setIsStatusOpen(false)
+        setQuestionToUpdateStatus(null)
     }
 
-    const handleConfirmDelete = async () => {
-        if (!questionToDelete) {
+    const handleConfirmStatus = async () => {
+        if (!questionToUpdateStatus || statusMutation.isPending) {
             return
         }
 
         try {
-            await deleteMutation.mutateAsync(
-                questionToDelete.id,
+            await statusMutation.mutateAsync(
+                { id: questionToUpdateStatus.id, isActive: !questionToUpdateStatus.isActive },
             )
 
-            toast.success('Question deleted successfully')
+            toast.success(questionToUpdateStatus.isActive ? 'Question deactivated successfully' : 'Question activated successfully')
 
-            setIsDeleteOpen(false)
-            setQuestionToDelete(null)
+            setIsStatusOpen(false)
+            setQuestionToUpdateStatus(null)
 
-            if (questions.length === 1 && page > 1) {
+            if (isActive !== '' && questions.length === 1 && page > 1) {
                 setPage((currentPage) => currentPage - 1)
             }
         } catch (error) {
             const message =
                 error?.response?.data?.message ||
-                'Failed to delete question'
+                'Failed to update question status'
 
             toast.error(message)
         }
@@ -397,7 +396,8 @@ function QuestionPage() {
                         <QuestionTable
                             questions={questions}
                             onEdit={handleOpenEdit}
-                            onDelete={handleOpenDelete}
+                            onStatusChange={handleOpenStatus}
+                            isStatusSaving={statusMutation.isPending}
                         />
                         <Pagination
                             page={page}
@@ -425,13 +425,13 @@ function QuestionPage() {
                 onSubmit={handleSubmitQuestion}
             />
 
-            {/* Delete */}
-            <QuestionDeleteDialog
-                isOpen={isDeleteOpen}
-                question={questionToDelete}
-                isDeleting={deleteMutation.isPending}
-                onClose={handleCloseDelete}
-                onConfirm={handleConfirmDelete}
+            {/* Activate / Deactivate */}
+            <QuestionStatusDialog
+                isOpen={isStatusOpen}
+                question={questionToUpdateStatus}
+                isSaving={statusMutation.isPending}
+                onClose={handleCloseStatus}
+                onConfirm={handleConfirmStatus}
             />
             <QuestionImportModal
                 isOpen={isImportOpen}

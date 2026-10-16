@@ -11,6 +11,7 @@ import {
   getQuestion,
   getQuestions,
   updateQuestion,
+  updateQuestionStatus,
 } from '../services/question.service'
 
 export const useQuestions = (params) => {
@@ -55,6 +56,19 @@ export const useUpdateQuestion = () => {
       queryClient.invalidateQueries({
         queryKey: ['questions', variables.id],
       })
+    },
+  })
+}
+
+export const useUpdateQuestionStatus = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, isActive }) => updateQuestionStatus(id, isActive),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['questions'] })
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['tryout-packages'] })
     },
   })
 }

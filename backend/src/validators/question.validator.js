@@ -1,5 +1,9 @@
 import Joi from 'joi';
 
+export const questionStatusSchema = Joi.object({
+  isActive: Joi.boolean().strict().required()
+});
+
 const answerOptionSchema = Joi.object({
   key: Joi.string()
     .valid('A', 'B', 'C', 'D', 'E')
@@ -121,7 +125,7 @@ export const updateQuestionSchema = Joi.object({
     .required(),
 
   isActive: Joi.boolean()
-    .required(),
+    .optional(),
 
   removeQuestionImage: Joi.boolean()
   .default(false),

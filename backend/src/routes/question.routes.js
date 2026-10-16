@@ -5,7 +5,8 @@ import {
   getQuestionDetail,
   createQuestion,
   updateQuestion,
-  deleteQuestion
+  deleteQuestion,
+  updateQuestionStatus
 } from '../controllers/question.controller.js';
 
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -15,7 +16,8 @@ import { validate } from '../middlewares/validation.middleware.js';
 import {
   createQuestionSchema,
   updateQuestionSchema,
-  questionQuerySchema
+  questionQuerySchema,
+  questionStatusSchema
 } from '../validators/question.validator.js';
 import {
   questionImageUpload
@@ -60,6 +62,14 @@ router.put(
   parseQuestionForm,
   validate(updateQuestionSchema),
   updateQuestion
+);
+
+router.patch(
+  '/:id/status',
+  authenticate,
+  authorize('admin'),
+  validate(questionStatusSchema),
+  updateQuestionStatus
 );
 
 router.delete(

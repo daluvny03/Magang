@@ -64,7 +64,6 @@ const questionSchema = z
       .int('Difficulty must be an integer')
       .min(1, 'Invalid difficulty')
       .max(3, 'Invalid difficulty'),
-    isActive: z.boolean(),
   })
   .superRefine((data, ctx) => {
     // Opsi hanya-gambar diabaikan karena tidak punya teks untuk dibandingkan
@@ -111,7 +110,6 @@ const createEmptyValues = () => ({
   explanation: { ...DEFAULT_EXPLANATION },
   score: 0,
   difficulty: 2,
-  isActive: true,
 })
 
 const normalizeQuestionForForm = (q) => ({
@@ -137,7 +135,6 @@ const normalizeQuestionForForm = (q) => ({
   },
   score: Number(q.score ?? 0),
   difficulty: Number(q.difficulty ?? 2),
-  isActive: Boolean(q.isActive),
 })
 
 const EXPLANATION_FIELDS = [
@@ -210,7 +207,10 @@ function QuestionFormModal({
   const handlePreview = async () => {
     if (isCategoryUnavailable || isSubmitting) return
     if (!(await trigger(undefined, { shouldFocus: true }))) return
-    setPreviewValues(getValues())
+    setPreviewValues({
+      ...getValues(),
+      isActive: isEdit ? Boolean(question?.isActive) : true,
+    })
   }
 
   return (
@@ -369,14 +369,6 @@ function QuestionFormModal({
             </FormField>
           </div>
 
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
-            <input
-              type="checkbox"
-              {...register('isActive')}
-              className="h-4 w-4 accent-primary-500"
-            />
-            Active
-          </label>
         </form>
       </Modal>
 

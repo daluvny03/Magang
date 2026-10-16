@@ -3,7 +3,8 @@ import {
   getQuestionById,
   createNewQuestion,
   updateExistingQuestion,
-  removeQuestion
+  removeQuestion,
+  changeQuestionStatus
 } from '../services/question.service.js';
 import {
   buildQuestionMedia,
@@ -179,6 +180,19 @@ export const updateQuestion = async (
       req.files
     );
 
+    next(error);
+  }
+};
+
+export const updateQuestionStatus = async (req, res, next) => {
+  try {
+    const data = await changeQuestionStatus(Number(req.params.id), req.body.isActive);
+    return res.status(200).json({
+      success: true,
+      message: 'Question status updated successfully',
+      data
+    });
+  } catch (error) {
     next(error);
   }
 };

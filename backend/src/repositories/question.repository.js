@@ -261,7 +261,7 @@ export const updateQuestion = async ({
           explanation = $6::jsonb,
           score = $7,
           difficulty = $8,
-          is_active = $9,
+          is_active = COALESCE($9, is_active),
           updated_at = NOW()
         WHERE id = $10
         RETURNING id
@@ -351,7 +351,7 @@ export const findQuestionByText = async ({
   return rows[0] || null;
 };
 
-export const deactivateQuestion = async (id) => {
+export const updateQuestionStatus = async (id, isActive) => {
   const client = await pool.connect()
 
   try {
@@ -380,7 +380,7 @@ export const deactivateQuestion = async (id) => {
 
     if (hasAttempts) {
       throw new AppError(
-        'Question cannot be deactivated because it belongs to a package with existing attempts',
+        'Question status cannot be changed because it belongs to a package with existing attempts',
         409,
         'QUESTION_ALREADY_USED'
       )
@@ -390,12 +390,12 @@ export const deactivateQuestion = async (id) => {
       `
         UPDATE questions
         SET
-          is_active = false,
+          is_active = $2,
           updated_at = NOW()
         WHERE id = $1
         RETURNING id
       `,
-      [id]
+      [id, isActive]
     )
 
     await client.query('COMMIT')
@@ -408,6 +408,8 @@ export const deactivateQuestion = async (id) => {
     client.release()
   }
 }
+
+export const deactivateQuestion = (id) => updateQuestionStatus(id, false)
 
 export const findDuplicateQuestions =
   async (questions) => {
