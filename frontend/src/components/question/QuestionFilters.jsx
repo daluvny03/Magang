@@ -2,12 +2,16 @@ import { RotateCcw, Search } from 'lucide-react'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 import Select from '../ui/Select'
+import CategorySearchSelect from './CategorySearchSelect'
 
 function QuestionFilters({
   search,
   categoryId,
   isActive,
   categories,
+  isCategoriesLoading,
+  isCategoriesError,
+  onRetryCategories,
   onSearchChange,
   onCategoryChange,
   onStatusChange,
@@ -16,7 +20,7 @@ function QuestionFilters({
   const hasFilter = search || categoryId || isActive !== 'true'
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-start gap-3">
       <div className="relative w-full sm:w-72">
         <Search
           size={16}
@@ -30,15 +34,24 @@ function QuestionFilters({
         />
       </div>
 
-      <div className="w-full sm:w-52">
-        <Select value={categoryId} onChange={onCategoryChange}>
-          <option value="">All Categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
+      <div className="w-full sm:w-80">
+        <label htmlFor="question-category-filter" className="sr-only">Filter kategori</label>
+        <CategorySearchSelect
+          id="question-category-filter"
+          categories={categories}
+          value={categoryId}
+          onChange={onCategoryChange}
+          isLoading={isCategoriesLoading}
+          isError={isCategoriesError}
+          onRetry={() => onRetryCategories?.()}
+          required={false}
+          floating
+        />
+        {categoryId && (
+          <Button type="button" variant="soft" className="mt-2" onClick={() => onCategoryChange('')}>
+            Semua kategori
+          </Button>
+        )}
       </div>
 
       <div className="w-full sm:w-36">

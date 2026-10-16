@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useEffect, useMemo, useState } from 'react'
+import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 
@@ -13,6 +13,7 @@ import Textarea from '../ui/Textarea'
 import ImageInput from './ImageInput'
 import OptionEditor from './OptionEditor'
 import QuestionPreviewModal from './QuestionPreviewModal'
+import CategorySearchSelect from './CategorySearchSelect'
 import {
   DEFAULT_ANSWER_OPTIONS,
   DEFAULT_EXPLANATION,
@@ -150,6 +151,9 @@ function QuestionFormModal({
   mode,
   question,
   categories = [],
+  isCategoriesLoading = false,
+  isCategoriesError = false,
+  onRetryCategories,
   isSubmitting = false,
   serverErrors = {},
   onClose,
@@ -157,9 +161,23 @@ function QuestionFormModal({
 }) {
   const isEdit = mode === 'edit'
   const [previewValues, setPreviewValues] = useState(null)
+  const categorySchema = useMemo(
+    () => questionSchema.superRefine((values, ctx) => {
+      if (!categories.some((category) => String(category.id) === values.categoryId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['categoryId'],
+          message: 'Pilih kategori yang tersedia dari hasil pencarian.',
+        })
+      }
+    }),
+    [categories]
+  )
+  const isCategoryUnavailable = isCategoriesLoading || isCategoriesError
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     setValue,
@@ -168,7 +186,7 @@ function QuestionFormModal({
     getValues,
     formState: { errors },
   } = useForm({
-    resolver: zodResolver(questionSchema),
+    resolver: zodResolver(categorySchema),
     defaultValues: createEmptyValues(),
   })
 
@@ -190,6 +208,7 @@ function QuestionFormModal({
   const fieldError = (name) => errors[name]?.message || serverErrors[name]
 
   const handlePreview = async () => {
+    if (isCategoryUnavailable || isSubmitting) return
     if (!(await trigger(undefined, { shouldFocus: true }))) return
     setPreviewValues(getValues())
   }
@@ -208,13 +227,13 @@ function QuestionFormModal({
         }
         footer={
           <>
-            <Button variant="outline" onClick={handlePreview} disabled={isSubmitting}>
+            <Button variant="outline" onClick={handlePreview} disabled={isSubmitting || isCategoryUnavailable}>
               Preview
             </Button>
             <Button variant="soft" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button type="submit" form="question-form" disabled={isSubmitting}>
+            <Button type="submit" form="question-form" disabled={isSubmitting || isCategoryUnavailable}>
               {isSubmitting ? 'Saving...' : isEdit ? 'Update Question' : 'Create Question'}
             </Button>
           </>
@@ -222,24 +241,37 @@ function QuestionFormModal({
       >
         <form
           id="question-form"
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit((values) => {
+            if (isCategoryUnavailable || isSubmitting) return
+            return onSubmit(values)
+          })}
           className="space-y-5"
         >
           {serverErrors.general && <Alert tone="red">{serverErrors.general}</Alert>}
 
           <FormField label="Category" htmlFor="q-category" error={fieldError('categoryId')}>
-            <Select
-              id="q-category"
-              {...register('categoryId')}
-              error={fieldError('categoryId')}
-            >
-              <option value="">Select category</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+            <Controller
+              name="categoryId"
+              control={control}
+              render={({ field }) => (
+                <CategorySearchSelect
+                  id="q-category"
+                  categories={categories}
+                  value={field.value}
+                  onChange={(value) => set('categoryId', value, true)}
+                  onBlur={field.onBlur}
+                  inputRef={field.ref}
+                  disabled={isSubmitting}
+                  isLoading={isCategoriesLoading}
+                  isError={isCategoriesError}
+                  onRetry={() => onRetryCategories?.()}
+                  error={fieldError('categoryId')}
+                  fallbackName={String(question?.categoryId ?? question?.category?.id) === String(field.value)
+                    ? question?.category?.name
+                    : undefined}
+                />
+              )}
+            />
           </FormField>
 
           <FormField label="Question" htmlFor="q-text" error={fieldError('questionText')}>

@@ -16,8 +16,9 @@ import LoadingSpinner from '../../../components/common/LoadingSpinner'
 import Pagination from '../../../components/common/Pagination'
 
 import {
-    useCategories,
+    useCategoryTree,
 } from '../../../hooks/useCategories'
+import { flattenCategoryTree } from '../../../utils/flattenCategoryTree'
 
 import {
     useCreateQuestion,
@@ -81,12 +82,16 @@ function QuestionPage() {
     } = useQuestions(questionParams)
 
     const {
-        data: categoryResponse,
-        isLoading: isCategoriesLoading,
-    } = useCategories({
-        page: 1,
-        limit: 100,
-    })
+        data: categoryTreeResponse,
+        isPending: isCategoryTreeLoading,
+        isError: isCategoryTreeError,
+        refetch: refetchCategoryTree,
+    } = useCategoryTree()
+
+    const formCategories = useMemo(
+        () => flattenCategoryTree(categoryTreeResponse?.data || []),
+        [categoryTreeResponse],
+    )
 
     const createMutation = useCreateQuestion()
     const updateMutation = useUpdateQuestion()
@@ -100,8 +105,6 @@ function QuestionPage() {
         total: 0,
         totalPages: 0,
     }
-
-    const categories = categoryResponse?.data || []
 
     const isSaving =
         createMutation.isPending ||
@@ -119,8 +122,8 @@ function QuestionPage() {
         setPage(1)
     }
 
-    const handleCategoryChange = (event) => {
-        setCategoryId(event.target.value)
+    const handleCategoryChange = (value) => {
+        setCategoryId(value)
         setPage(1)
     }
 
@@ -370,7 +373,10 @@ function QuestionPage() {
                     search={searchInput}
                     categoryId={categoryId}
                     isActive={isActive}
-                    categories={categories}
+                    categories={formCategories}
+                    isCategoriesLoading={isCategoryTreeLoading}
+                    isCategoriesError={isCategoryTreeError}
+                    onRetryCategories={refetchCategoryTree}
                     onSearchChange={handleSearch}
                     onCategoryChange={handleCategoryChange}
                     onStatusChange={handleStatusChange}
@@ -409,7 +415,10 @@ function QuestionPage() {
                 isOpen={isFormOpen}
                 mode={formMode}
                 question={selectedQuestion}
-                categories={categories}
+                categories={formCategories}
+                isCategoriesLoading={isCategoryTreeLoading}
+                isCategoriesError={isCategoryTreeError}
+                onRetryCategories={refetchCategoryTree}
                 isSubmitting={isSaving}
                 serverErrors={serverErrors}
                 onClose={handleCloseForm}
