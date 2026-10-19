@@ -113,11 +113,22 @@ function TryoutDetailPage() {
     }
 
     if (!tryout) return null
-
     const hasActiveAttempt = Boolean(tryout.activeAttempt?.id)
-    const canStartOrResume = tryout.isAccessible && (
-        hasActiveAttempt || tryout.scheduleStatus === 'active'
-    )
+
+    const canResume = hasActiveAttempt
+
+    const canStart =
+        !hasActiveAttempt &&
+        tryout.isAccessible &&
+        tryout.scheduleStatus === 'active'
+
+    const requiresPremium =
+        !hasActiveAttempt &&
+        !tryout.isAccessible &&
+        tryout.requiredTier === 'premium'
+
+    const canStartOrResume = canResume || canStart
+
     const scheduleLabel = {
         upcoming: 'Belum dimulai',
         active: 'Periode aktif',
@@ -248,7 +259,7 @@ function TryoutDetailPage() {
                     dimulai tetap mendapat durasi penuh.
                 </p>
 
-                {hasActiveAttempt && tryout.isAccessible && (
+                {hasActiveAttempt && (
                     <p className="mt-3 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-blue-700">
                         Kamu memiliki ujian yang masih berjalan hingga{' '}
                         {formatScheduleDate(tryout.activeAttempt.expiresAt, 'batas waktu ujian')}.
@@ -316,12 +327,12 @@ function TryoutDetailPage() {
                                 'Gagal memulai atau melanjutkan tryout. Silakan coba kembali.'}
                         </p>
                     )}
-                    {tryout.isAccessible ? (
+                    {canStartOrResume ? (
                         <button
                             type="button"
                             onClick={handleStartTryout}
-                            disabled={!canStartOrResume || startTryoutMutation.isPending || isFetching}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                            disabled={startTryoutMutation.isPending || isFetching}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <Play size={17} />
 
@@ -329,11 +340,18 @@ function TryoutDetailPage() {
                                 ? (hasActiveAttempt ? 'Melanjutkan...' : 'Memulai...')
                                 : hasActiveAttempt
                                     ? 'Lanjutkan Tryout'
-                                    : tryout.scheduleStatus === 'active'
-                                        ? 'Mulai Tryout'
-                                        : scheduleLabel}
+                                    : 'Mulai Tryout'}
                         </button>
-                    ) : (
+                    ) : requiresPremium ? (
+                        <button
+                            type="button"
+                            onClick={() => navigate('/user/subscription')}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-700"
+                        >
+                            <Lock size={17} />
+                            Berlangganan Premium
+                        </button>
+                    ) : !tryout.isAccessible ? (
                         <div className="rounded-xl bg-gray-50 p-4 text-center">
                             <Lock
                                 size={20}
@@ -344,11 +362,15 @@ function TryoutDetailPage() {
                                 Tryout Terkunci
                             </p>
 
-                            <p className="mt-1 text-xs leading-5 text-gray-500">
-                                Paket langgananmu belum memiliki akses
-                                ke tryout ini.
-                            </p>
                         </div>
+                    ) : (
+                        <button
+                            type="button"
+                            disabled
+                            className="flex w-full cursor-not-allowed items-center justify-center rounded-xl bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-400"
+                        >
+                            {scheduleLabel}
+                        </button>
                     )}
                 </div>
             </section>

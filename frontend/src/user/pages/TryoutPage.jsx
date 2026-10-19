@@ -38,6 +38,10 @@ function TryoutPage() {
         navigate(`/user/tryouts/${tryout.id}`)
     }
 
+    const handleSubscribe = () => {
+        navigate('/user/subscription')
+    }
+
     return (
         <div className="mx-auto max-w-7xl space-y-6">
             {/* Page Header */}
@@ -109,6 +113,7 @@ function TryoutPage() {
                                 key={tryout.id}
                                 tryout={tryout}
                                 onDetail={handleDetail}
+                                onSubscribe={handleSubscribe}
                             />
                         ))}
                     </div>

@@ -5,7 +5,7 @@ import {
   Lock,
 } from 'lucide-react'
 
-function TryoutCard({ tryout, onDetail }) {
+function TryoutCard({ tryout, onDetail, onSubscribe }) {
   const scheduleLabel = {
     upcoming: 'Belum dimulai',
     active: 'Periode aktif',
@@ -21,11 +21,10 @@ function TryoutCard({ tryout, onDetail }) {
         </div>
 
         <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-            tryout.isFree
+          className={`rounded-full px-3 py-1 text-xs font-semibold ${tryout.isFree
               ? 'bg-green-50 text-green-700'
               : 'bg-primary-50 text-primary-700'
-          }`}
+            }`}
         >
           {tryout.isFree
             ? 'Gratis'
@@ -87,13 +86,14 @@ function TryoutCard({ tryout, onDetail }) {
       ) : (
         <button
           type="button"
-          disabled
-          className="mt-5 flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-500"
+          onClick={() => onSubscribe(tryout)}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-semibold text-primary-700 transition hover:bg-primary-100"
         >
           <Lock size={16} />
-          Terkunci
+          Lihat Premium
         </button>
       )}
+
     </article>
   )
 }

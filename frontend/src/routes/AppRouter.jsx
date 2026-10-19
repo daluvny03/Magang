@@ -24,6 +24,7 @@ import CatExamPage from '../user/pages/CatExamPage'
 import ResultPage from '../user/pages/ResultPage'
 import HistoryPage from '../user/pages/HistoryPage'
 import AnalysisPage from '../user/pages/AnalysisPage'
+import SubscriptionPage from '../user/pages/SubscriptionPage'
 
 function AppRouter() {
     return (
@@ -118,6 +119,11 @@ function AppRouter() {
                         <Route
                             path="profile"
                             element={<ProfilePage />}
+                        />
+
+                        <Route
+                            path="subscription"
+                            element={<SubscriptionPage />}
                         />
                     </Route>
 
