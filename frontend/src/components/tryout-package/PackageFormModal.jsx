@@ -24,7 +24,13 @@ const schema = z
       .number()
       .int()
       .min(1, 'Duration must be at least 1 minute'),
-    passingScore: z.coerce.number().min(0, 'Passing score must be at least 0'),
+    passingMode: z.enum(['none', 'total', 'category']),
+    passingScore: z.string(),
+    passingGrades: z.object({
+      twk: z.string(),
+      tiu: z.string(),
+      tkp: z.string(),
+    }),
     status: z.string().trim().min(1, 'Status is required'),
     isFree: z.boolean(),
     startAt: z.string().optional(),
@@ -36,6 +42,32 @@ const schema = z
       .min(1, 'Select at least one subscription tier'),
   })
   .superRefine((data, ctx) => {
+    const validateScore = (value, path) => {
+      if (!value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path,
+          message: 'Masukkan batas skor berupa angka minimal 0.',
+        })
+      }
+    }
+
+    if (data.passingMode === 'total') {
+      validateScore(data.passingScore, ['passingScore'])
+    }
+
+    if (data.passingMode === 'category') {
+      const grades = Object.entries(data.passingGrades).filter(([, value]) => value.trim() !== '')
+      if (grades.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['passingGrades'],
+          message: 'Isi batas skor untuk kategori yang memiliki soal dalam paket.',
+        })
+      }
+      grades.forEach(([slug, value]) => validateScore(value, ['passingGrades', slug]))
+    }
+
     if (
       data.startAt &&
       data.endAt &&
@@ -54,7 +86,9 @@ const emptyValues = {
   slug: '',
   description: '',
   durationMinutes: 100,
-  passingScore: 0,
+  passingMode: 'none',
+  passingScore: '',
+  passingGrades: { twk: '', tiu: '', tkp: '' },
   status: 'draft',
   isFree: false,
   startAt: '',
@@ -101,6 +135,7 @@ function PackageFormModal({
   const name = watch('name') || ''
   const slug = watch('slug')
   const status = watch('status')
+  const passingMode = watch('passingMode')
   const isFree = watch('isFree')
   const selectedQuestions = watch('questionIds') || []
   const selectedCategoryIds = watch('categoryIds') || []
@@ -308,20 +343,51 @@ function PackageFormModal({
               />
             </FormField>
 
-            <FormField
-              label="Passing Score"
-              htmlFor="pkg-passing"
-              error={errors.passingScore?.message || serverErrors.passingScore}
-            >
-              <Input
-                id="pkg-passing"
-                type="number"
-                min="0"
-                step="0.01"
-                {...register('passingScore')}
-                error={errors.passingScore}
-              />
+            <FormField label="Passing Mode" htmlFor="pkg-passing-mode" error={errors.passingMode?.message || serverErrors.passingMode}>
+              <Select id="pkg-passing-mode" {...register('passingMode')}>
+                <option value="none">Tanpa evaluasi kelulusan</option>
+                <option value="total">Berdasarkan skor total</option>
+                <option value="category">Berdasarkan kategori</option>
+              </Select>
             </FormField>
+
+            {passingMode === 'total' && (
+              <FormField label="Passing Score" htmlFor="pkg-passing" error={errors.passingScore?.message || serverErrors.passingScore}>
+                <Input
+                  id="pkg-passing"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  {...register('passingScore')}
+                  error={errors.passingScore || serverErrors.passingScore}
+                />
+              </FormField>
+            )}
+
+            {passingMode === 'category' && (
+              <div className="space-y-3 md:col-span-2">
+                <p className="text-xs text-gray-500">
+                  Isi batas setiap kategori yang memiliki soal dalam paket. Kosongkan kategori yang tidak memiliki soal. Semua batas harus terpenuhi agar peserta lulus.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {['twk', 'tiu', 'tkp'].map((slug) => (
+                    <FormField key={slug} label={`Passing Grade ${slug.toUpperCase()}`} htmlFor={`pkg-grade-${slug}`} error={errors.passingGrades?.[slug]?.message || serverErrors[`passingGrades.${slug}`]}>
+                      <Input
+                        id={`pkg-grade-${slug}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        {...register(`passingGrades.${slug}`)}
+                        error={errors.passingGrades?.[slug] || serverErrors[`passingGrades.${slug}`]}
+                      />
+                    </FormField>
+                  ))}
+                </div>
+                {(errors.passingGrades?.message || serverErrors.passingGrades) && (
+                  <p className="text-xs text-red-500">{errors.passingGrades?.message || serverErrors.passingGrades}</p>
+                )}
+              </div>
+            )}
 
             <FormField
               label="Status"

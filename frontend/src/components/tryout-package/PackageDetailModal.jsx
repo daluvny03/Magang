@@ -4,6 +4,7 @@ import Button from '../ui/Button'
 import Modal from '../ui/Modal'
 import SectionCard from '../ui/SectionCard'
 import LoadingSpinner from '../common/LoadingSpinner'
+import PassingRulesSummary from './PassingRulesSummary'
 
 const formatDate = (value) => {
   if (!value) return '-'
@@ -121,7 +122,10 @@ function PackageDetailModal({
             <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Info label="Duration" value={`${item.durationMinutes} minutes`} />
               <Info label="Questions" value={item.questionCount ?? 0} />
-              <Info label="Passing Score" value={item.passingScore ?? '-'} />
+              <div>
+                <p className="mb-1 text-xs text-gray-500">Aturan Kelulusan</p>
+                <PassingRulesSummary packageData={item} />
+              </div>
               <Info label="Access" value={item.isFree ? 'Free' : 'Paid'} />
               <Info label="Start At" value={formatDate(item.startAt)} />
               <Info label="End At" value={formatDate(item.endAt)} />

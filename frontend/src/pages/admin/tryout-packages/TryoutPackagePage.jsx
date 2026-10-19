@@ -113,7 +113,16 @@ function TryoutPackagePage() {
     slug: values.slug.trim(),
     description: values.description?.trim() || '',
     durationMinutes: Number(values.durationMinutes),
-    passingScore: Number(values.passingScore),
+    passingMode: values.passingMode,
+    ...(values.passingMode === 'total'
+      ? { passingScore: Number(values.passingScore) }
+      : values.passingMode === 'category'
+        ? { passingGrades: Object.fromEntries(
+            Object.entries(values.passingGrades)
+              .filter(([, value]) => value.trim() !== '')
+              .map(([slug, value]) => [slug, Number(value)])
+          ) }
+        : {}),
     status: values.status,
     isFree: Boolean(values.isFree),
     startAt: values.startAt ? new Date(values.startAt).toISOString() : null,
@@ -185,7 +194,7 @@ function TryoutPackagePage() {
         else if (item.message && !errors.general) errors.general = item.message
       })
     }
-    if (data.message && !errors.general && mutation.error?.response?.status === 409) {
+    if (data.message && !errors.general) {
       errors.general = data.message
     }
     return errors

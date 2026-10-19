@@ -2,6 +2,7 @@ import { Edit, Eye } from 'lucide-react'
 import Badge from '../ui/Badge'
 import DataTable from '../ui/DataTable'
 import IconButton from '../ui/IconButton'
+import PassingRulesSummary from './PassingRulesSummary'
 
 function PackageTable({ packages, onView, onEdit }) {
   const columns = [
@@ -28,9 +29,9 @@ function PackageTable({ packages, onView, onEdit }) {
       render: (item) => item.questionCount ?? 0,
     },
     {
-      key: 'passingScore',
-      header: 'Passing Score',
-      render: (item) => item.passingScore ?? '-',
+      key: 'passingMode',
+      header: 'Aturan Kelulusan',
+      render: (item) => <PassingRulesSummary packageData={item} />,
     },
     {
       key: 'isFree',
