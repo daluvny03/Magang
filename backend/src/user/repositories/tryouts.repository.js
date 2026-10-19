@@ -14,6 +14,10 @@ export const findAvailableTryoutsForUser = async (
         tp.question_count,
         tp.passing_score,
         tp.is_free,
+        CASE
+          WHEN tp.is_free = true THEN NULL
+          ELSE 'premium'
+        END AS required_tier,
         tp.start_at,
         tp.end_at,
 
@@ -29,13 +33,19 @@ export const findAvailableTryoutsForUser = async (
           WHEN EXISTS (
             SELECT 1
             FROM user_subscriptions us
+
+            INNER JOIN subscription_tiers st
+              ON st.id = us.subscription_tier_id
+
             INNER JOIN tryout_package_subscription_tiers tpst
-              ON tpst.subscription_tier_id =
-                 us.subscription_tier_id
+              ON tpst.subscription_tier_id = st.id
+
             WHERE us.user_id = $1
+              AND st.slug = 'premium'
+              AND st.is_active = true
               AND us.status = 'active'
-              AND us.started_at <= CURRENT_TIMESTAMP
-              AND us.expired_at > CURRENT_TIMESTAMP
+              AND us.started_at <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+              AND us.expired_at > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
               AND tpst.tryout_package_id = tp.id
           ) THEN true
 
@@ -45,6 +55,19 @@ export const findAvailableTryoutsForUser = async (
       FROM tryout_packages tp
 
       WHERE tp.status = 'published'
+        AND (
+          tp.is_free = true
+          OR EXISTS (
+            SELECT 1
+            FROM tryout_package_subscription_tiers tpst_visible
+            INNER JOIN subscription_tiers st_visible
+              ON st_visible.id =
+                tpst_visible.subscription_tier_id
+            WHERE tpst_visible.tryout_package_id = tp.id
+              AND st_visible.slug = 'premium'
+              AND st_visible.is_active = true
+          )
+        )
 
       ORDER BY tp.id ASC
     `,
@@ -74,6 +97,10 @@ export const findAvailableTryoutByIdForUser = async (
         tp.question_count,
         tp.passing_score,
         tp.is_free,
+        CASE
+          WHEN tp.is_free = true THEN NULL
+          ELSE 'premium'
+        END AS required_tier,
         tp.start_at,
         tp.end_at,
 
@@ -89,13 +116,19 @@ export const findAvailableTryoutByIdForUser = async (
           WHEN EXISTS (
             SELECT 1
             FROM user_subscriptions us
+
+            INNER JOIN subscription_tiers st
+              ON st.id = us.subscription_tier_id
+
             INNER JOIN tryout_package_subscription_tiers tpst
-              ON tpst.subscription_tier_id =
-                 us.subscription_tier_id
+              ON tpst.subscription_tier_id = st.id
+
             WHERE us.user_id = $1
+              AND st.slug = 'premium'
+              AND st.is_active = true
               AND us.status = 'active'
-              AND us.started_at <= CURRENT_TIMESTAMP
-              AND us.expired_at > CURRENT_TIMESTAMP
+              AND us.started_at <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+              AND us.expired_at > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
               AND tpst.tryout_package_id = tp.id
           ) THEN true
 
@@ -106,6 +139,19 @@ export const findAvailableTryoutByIdForUser = async (
 
       WHERE tp.id = $2
         AND tp.status = 'published'
+        AND (
+          tp.is_free = true
+          OR EXISTS (
+            SELECT 1
+            FROM tryout_package_subscription_tiers tpst_visible
+            INNER JOIN subscription_tiers st_visible
+              ON st_visible.id =
+                tpst_visible.subscription_tier_id
+            WHERE tpst_visible.tryout_package_id = tp.id
+              AND st_visible.slug = 'premium'
+              AND st_visible.is_active = true
+          )
+        )
 
         ${ignoreSchedule ? '' : `AND (
           tp.start_at IS NULL

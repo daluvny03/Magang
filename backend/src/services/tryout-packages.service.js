@@ -254,18 +254,11 @@ export const getPackageById = async (id) => {
 export const createTryoutPackage = async (payload) => {
   validatePackageSchedule(payload)
 
-  console.log('PASSING RULES INPUT:', {
-    passingMode: payload.passingMode,
-    passingScore: payload.passingScore,
-    passingGrades: payload.passingGrades,
-  })
-
   const passingRules = validatePassingRules({
     passingMode: payload.passingMode,
     passingScore: payload.passingScore,
     passingGrades: payload.passingGrades,
   })
-  console.log('VALIDATED PASSING RULES:', passingRules)
 
   const validatedPayload = {
     ...payload,

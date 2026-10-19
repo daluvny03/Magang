@@ -1,5 +1,6 @@
 import {
-  getActiveSubscriptionByUserId
+  getActiveSubscriptionByUserId,
+  getSubscriptionCatalog
 } from '../services/subscription.service.js';
 
 export const getActiveSubscription = async (
@@ -15,9 +16,26 @@ export const getActiveSubscription = async (
 
     return res.status(200).json({
       success: true,
-      message:
-        'Subscription retrieved successfully',
+      message: 'Subscription retrieved successfully',
       data: subscription
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAvailableSubscriptionCatalog = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const tiers = await getSubscriptionCatalog();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Subscription catalog retrieved successfully',
+      data: tiers
     });
   } catch (error) {
     next(error);
