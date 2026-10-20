@@ -3,10 +3,11 @@ import {
   findPaymentByInvoice,
   findWebhookEventByRequestId,
   saveWebhookEvent,
+  isSameWebhookPayload,
 } from '../repositories/payment-webhook.repository.js'
 import { pool } from '../../config/database.js'
 
-import { markPaymentApplied } from
+import { markPaymentPaid } from
   '../repositories/payment.repository.js'
 
 import { applyVerifiedPremiumPayment } from
@@ -227,14 +228,17 @@ export const processRecordedDokuEvent = async (eventId) => {
       throw new Error('Invalid DOKU transaction date')
     }
 
-    const paid = await markPaymentApplied(
-      paymentId,
-      parsedDate.toISOString(),
-      client
-    )
+    // Duplicate SUCCESS tidak boleh menulis applied_at atau mengganti paid_at.
+    if (payment.status !== 'paid' || !payment.paid_at) {
+      const paid = await markPaymentPaid(
+        paymentId,
+        parsedDate.toISOString(),
+        client
+      )
 
-    if (!paid) {
-      throw new Error('Payment cannot transition to paid')
+      if (!paid) {
+        throw new Error('Payment cannot transition to paid')
+      }
     }
 
     await client.query('COMMIT')

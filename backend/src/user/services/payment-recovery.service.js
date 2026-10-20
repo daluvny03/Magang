@@ -10,7 +10,8 @@ import {
 } from '../validators/doku-payment-status.validator.js'
 
 import {
-  markPaymentApplied,
+  markPaymentPaid,
+  scheduleNextPaymentReconciliation,
 } from '../repositories/payment.repository.js'
 
 import {
@@ -66,7 +67,14 @@ export const recoverUnappliedPremiumPayments = async () => {
         action: result.action,
       })
     } catch (error) {
-      await scheduleNextPaymentReconciliation(payment.id)
+      try {
+        await scheduleNextPaymentReconciliation(payment.id)
+      } catch (retryError) {
+        console.error('Premium recovery retry scheduling failed:', {
+          paymentId: payment.id,
+          code: retryError.code ?? 'RETRY_SCHEDULING_FAILED',
+        })
+      }
       console.error('Premium recovery failed:', {
         paymentId: payment.id,
         code: error.code ?? 'RECOVERY_FAILED',
@@ -196,7 +204,7 @@ export const reconcileDokuPayment = async (paymentId) => {
     } else if (
       ['pending', 'reconciling'].includes(payment.status)
     ) {
-      const updated = await markPaymentApplied(
+      const updated = await markPaymentPaid(
         paymentId,
         verification.paidAt,
         client

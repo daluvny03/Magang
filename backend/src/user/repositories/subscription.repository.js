@@ -71,6 +71,7 @@ export const findAvailableSubscriptionTiers = async () => {
 
 export const findCurrentPremiumSubscriptionForUpdate = async (
   userId,
+  evaluatedAt,
   client
 ) => {
   const { rows } = await client.query(
@@ -94,13 +95,13 @@ export const findCurrentPremiumSubscriptionForUpdate = async (
       WHERE us.user_id = $1
         AND st.slug = 'premium'
         AND us.status = 'active'
-        AND us.started_at <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
-        AND us.expired_at > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+        AND us.started_at <= ($2::timestamptz AT TIME ZONE 'UTC')
+        AND us.expired_at > ($2::timestamptz AT TIME ZONE 'UTC')
       ORDER BY us.expired_at DESC
       LIMIT 1
       FOR UPDATE OF us
     `,
-    [userId]
+    [userId, evaluatedAt]
   );
 
   return rows[0] || null;
@@ -153,7 +154,7 @@ export const renewPremiumSubscription = async (
     `
       UPDATE user_subscriptions
       SET
-        expired_at = $2::timestamptz AT TIME ZONE 'UTC'
+        expired_at = $2::timestamptz AT TIME ZONE 'UTC',
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
         AND status = 'active'::subscription_status

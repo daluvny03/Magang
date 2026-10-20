@@ -141,23 +141,25 @@ export const applyVerifiedPremiumPayment = async (
       );
     }
 
+    // Evaluasi setelah user/payment lock diperoleh. CURRENT_TIMESTAMP
+    // masih menunjuk awal transaksi, termasuk waktu menunggu lock.
+    const timeResult = await client.query(`
+      SELECT clock_timestamp() AS activated_at
+    `);
+
+    const activatedAt = new Date(
+      timeResult.rows[0].activated_at
+    );
+
     const currentSubscription =
       await findCurrentPremiumSubscriptionForUpdate(
         userId,
+        activatedAt.toISOString(),
         client
       );
 
     let subscription;
     let action;
-
-    
-    const timeResult = await client.query(`
-    SELECT clock_timestamp() AS activated_at
-    `);
-
-    const activatedAt = new Date(
-    timeResult.rows[0].activated_at
-    );
 
     if (currentSubscription) {
       const previousExpiration = parseUtcTimestamp(

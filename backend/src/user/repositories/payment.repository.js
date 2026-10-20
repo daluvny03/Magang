@@ -188,6 +188,34 @@ export const findPaymentForUpdate = async (
   return rows[0] || null;
 };
 
+// Hanya dipanggil setelah bukti pembayaran diverifikasi, dengan row lock.
+// applied_at tetap menjadi tanggung jawab transaksi subscription lifecycle.
+export const markPaymentPaid = async (
+  paymentId,
+  paidAt,
+  client
+) => {
+  const { rows } = await client.query(
+    `
+      UPDATE payments
+      SET
+        status = 'paid',
+        paid_at = $2,
+        reconciliation_attempt_count = 0,
+        next_reconciliation_at = NULL,
+        updated_at = NOW()
+      WHERE id = $1
+        AND status IN ('initiating', 'pending', 'reconciling')
+        AND paid_at IS NULL
+        AND applied_at IS NULL
+      RETURNING *
+    `,
+    [paymentId, paidAt]
+  );
+
+  return rows[0] || null;
+};
+
 export const markPaymentApplied = async (
   paymentId,
   appliedAt,
