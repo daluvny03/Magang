@@ -46,9 +46,14 @@ export const env = {
     environment: process.env.DOKU_ENV || 'sandbox',
     clientId: process.env.DOKU_CLIENT_ID,
     secretKey: process.env.DOKU_SECRET_KEY,
-    baseUrl:
-      process.env.DOKU_BASE_URL ||
-      'https://api-sandbox.doku.com',
+    baseUrl: process.env.DOKU_BASE_URL || (
+      process.env.DOKU_ENV === 'production'
+        ? 'https://api.doku.com'
+        : 'https://api-sandbox.doku.com'
+    ),
+    paymentMethodTypes: (process.env.DOKU_PAYMENT_METHOD_TYPES ||
+      'VIRTUAL_ACCOUNT_BCA,VIRTUAL_ACCOUNT_BANK_MANDIRI,VIRTUAL_ACCOUNT_BRI,VIRTUAL_ACCOUNT_BNI,QRIS,CREDIT_CARD'
+    ).split(',').map((value) => value.trim()),
     checkoutDueMinutes: Number(
       process.env.DOKU_CHECKOUT_DUE_MINUTES || 60
     ),

@@ -1,8 +1,15 @@
 
 import axios from 'axios'
 
-import { env } from '../../config/env.js'
 import { createDokuHeaders } from '../utils/doku-headers.js'
+import {
+  validateDokuConfig,
+  validateDokuPaymentUrl,
+} from '../utils/doku-config.js'
+import {
+  serializeCheckoutBody,
+  validateCheckoutSnapshot,
+} from '../utils/doku-checkout-request.js'
 
 const CHECKOUT_TARGET = '/checkout/v1/payment'
 
@@ -10,49 +17,37 @@ export const createDokuCheckout = async ({
   invoiceNumber,
   amount,
   requestId,
+  snapshot,
 }) => {
-  const { doku } = env
-
-  if (
-    !doku?.clientId ||
-    !doku?.secretKey ||
-    !doku?.baseUrl
-  ) {
-    throw new Error('DOKU configuration is incomplete')
-  }
+  // Retry memakai konfigurasi payload tersimpan, bukan due date/channel terbaru.
+  const doku = validateDokuConfig()
 
   const numericAmount = Number(amount)
-  const dueMinutes = Number(doku.checkoutDueMinutes)
 
   if (
     !Number.isSafeInteger(numericAmount) ||
     numericAmount <= 0 ||
-    !Number.isInteger(dueMinutes) ||
-    dueMinutes <= 0
+    numericAmount > 999999999999
   ) {
     throw new Error('Invalid DOKU checkout parameters')
   }
 
   if (
     typeof invoiceNumber !== 'string' ||
-    !invoiceNumber ||
+    !/^[A-Za-z0-9_-]{1,64}$/.test(invoiceNumber) ||
     typeof requestId !== 'string' ||
-    !requestId
+    !requestId ||
+    requestId.length > 128
   ) {
     throw new Error('Missing DOKU payment identifiers')
   }
 
-  const requestBody = {
-    order: {
-      invoice_number: invoiceNumber,
-      amount: numericAmount,
-    },
-    payment: {
-      payment_due_date: dueMinutes,
-    },
-  }
-
-  const rawBody = JSON.stringify(requestBody)
+  const requestBody = validateCheckoutSnapshot(
+    snapshot,
+    { invoice_number: invoiceNumber, amount },
+    doku
+  )
+  const rawBody = serializeCheckoutBody(requestBody)
 
   const headers = createDokuHeaders({
     clientId: doku.clientId,
@@ -71,43 +66,36 @@ export const createDokuCheckout = async ({
         timeout: 15000,
         maxRedirects: 0,
         validateStatus: (status) =>
-          status >= 200 && status < 300,
+          (status >= 200 && status < 300) || status === 409,
       }
     )
 
     const result = response.data?.response
 
+    // 409 hanya dapat digunakan jika body replay memenuhi validasi yang sama.
     if (
       result?.order?.invoice_number !== invoiceNumber ||
       Number(result?.order?.amount) !== numericAmount ||
+      (result?.order?.currency != null && result.order.currency !== 'IDR') ||
       typeof result?.payment?.url !== 'string'
     ) {
       throw new Error('Invalid DOKU checkout response')
     }
 
-    const paymentUrl = new URL(result.payment.url)
-
-    if (paymentUrl.protocol !== 'https:') {
-      throw new Error('Invalid DOKU payment URL')
-    }
+    const paymentUrl = validateDokuPaymentUrl(
+      result.payment.url,
+      doku.checkoutOrigin
+    )
 
     return {
       invoiceNumber,
-      paymentUrl: paymentUrl.toString(),
+      paymentUrl,
       expiredDate: result.payment.expired_date ?? null,
       tokenId: result.payment.token_id ?? null,
     }
   } catch (error) {
     if (error.response) {
       const status = error.response.status
-
-      if (status === 409) {
-        const conflict = new Error(
-          'DOKU checkout requires reconciliation'
-        )
-        conflict.code = 'DOKU_CHECKOUT_CONFLICT'
-        throw conflict
-      }
 
       const providerError = new Error(
         'DOKU checkout request was rejected'

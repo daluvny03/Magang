@@ -35,11 +35,16 @@ export const createCheckout = async (
 
     const result = await createPremiumCheckout(userId);
 
+    const isReconciling = ['initiating', 'reconciling']
+      .includes(result.payment.status);
+
     return res.status(
-      result.isExisting ? 200 : 201
+      isReconciling ? 202 : result.isExisting ? 200 : 201
     ).json({
       success: true,
-      message: result.isExisting
+      message: isReconciling
+        ? 'Checkout outcome is being reconciled'
+        : result.isExisting
         ? 'Existing checkout retrieved successfully'
         : 'Checkout initialized successfully',
       data: result.payment

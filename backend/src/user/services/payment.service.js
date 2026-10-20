@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import {
   claimCheckoutInitialization,
@@ -9,12 +9,12 @@ import {
 
 import { createDokuCheckout } from '../clients/doku-checkout-client.js'
 import { parseDokuExpiredDate } from '../utils/doku-date.js'
+import { validateDokuConfig } from '../utils/doku-config.js'
 
 
 const generateInvoiceNumber = () => {
-  const uniqueId = randomUUID().replaceAll('-', '');
-
-  return `CPNS-${uniqueId}`.toUpperCase();
+  // 28 karakter alfanumerik, dengan 96 bit randomness.
+  return `CPNS${randomBytes(12).toString('hex')}`.toUpperCase();
 };
 
 const mapPayment = (row) => ({
@@ -35,6 +35,8 @@ const mapPayment = (row) => ({
 });
 
 export const createPremiumCheckout = async (userId) => {
+  // Kegagalan konfigurasi lokal tidak boleh membuat transaksi reconciling.
+  const checkoutConfig = validateDokuConfig({ checkout: true });
   // Identitas dibuat oleh backend, bukan frontend.
   const invoiceNumber = generateInvoiceNumber();
   const dokuRequestId = randomUUID();
@@ -42,7 +44,8 @@ export const createPremiumCheckout = async (userId) => {
   const created = await createPayment({
     userId,
     invoiceNumber,
-    dokuRequestId
+    dokuRequestId,
+    checkoutConfig
   });
 
   const payment = created.payment ?? created;
@@ -72,7 +75,8 @@ export const createPremiumCheckout = async (userId) => {
     const dokuResult = await createDokuCheckout({
       invoiceNumber: claimed.invoice_number,
       amount: claimed.amount,
-      requestId: claimed.doku_request_id
+      requestId: claimed.doku_request_id,
+      snapshot: claimed.checkout_request_body
     });
 
     const expiredAt = parseDokuExpiredDate(
@@ -96,7 +100,8 @@ export const createPremiumCheckout = async (userId) => {
     // Pertahankan status reconciling sampai hasil diperiksa secara terpercaya.
     console.error('DOKU checkout initialization failed:', {
       paymentId: claimed.id,
-      code: error.code ?? 'DOKU_INIT_ERROR'
+      code: error.code ?? 'DOKU_INIT_ERROR',
+      httpStatus: error.httpStatus
     });
 
     const current = await findPaymentByIdAndUserId(

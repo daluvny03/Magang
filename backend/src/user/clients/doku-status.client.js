@@ -1,21 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import axios from 'axios'
 
-import { env } from '../../config/env.js'
 import { createDokuHeaders } from '../utils/doku-headers.js'
+import { validateDokuConfig } from '../utils/doku-config.js'
 
 export const checkDokuPaymentStatus = async ({
   invoiceNumber,
 }) => {
-  const { doku } = env
-
-  if (
-    !doku?.clientId ||
-    !doku?.secretKey ||
-    !doku?.baseUrl
-  ) {
-    throw new Error('DOKU configuration is incomplete')
-  }
+  const doku = validateDokuConfig()
 
   if (
     typeof invoiceNumber !== 'string' ||
@@ -43,6 +35,7 @@ export const checkDokuPaymentStatus = async ({
       {
         headers,
         timeout: 15000,
+        maxRedirects: 0,
       }
     )
 
@@ -50,7 +43,10 @@ export const checkDokuPaymentStatus = async ({
 
     if (
       result?.order?.invoice_number !== invoiceNumber ||
-      typeof result?.transaction?.status !== 'string'
+      (
+        typeof result?.transaction?.status !== 'string' &&
+        !['ORDER_GENERATED', 'ORDER_EXPIRED'].includes(result?.order?.status)
+      )
     ) {
       throw new Error('Invalid DOKU status response')
     }

@@ -7,7 +7,9 @@ export const verifyDokuPaymentStatus = (
     throw new Error('Payment verification data missing')
   }
 
-  const status = response.transaction?.status
+  const transactionStatus = response.transaction?.status
+  const orderStatus = response.order?.status
+  const status = transactionStatus ?? orderStatus
 
   if (typeof status !== 'string') {
     throw new Error('Invalid DOKU transaction status')
@@ -26,21 +28,35 @@ export const verifyDokuPaymentStatus = (
     !Number.isSafeInteger(amount) ||
     amount <= 0 ||
     amount !== Number(payment.amount) ||
-    payment.currency !== 'IDR'
+    payment.currency !== 'IDR' ||
+    (response.order?.currency != null && response.order.currency !== 'IDR')
   ) {
     throw new Error('DOKU payment amount mismatch')
+  }
+
+  const originalRequestId =
+    response.transaction?.original_request_id
+
+  if (
+    originalRequestId != null &&
+    ![payment.doku_request_id, payment.invoice_number].includes(originalRequestId)
+  ) {
+    throw new Error('DOKU transaction identity mismatch')
+  }
+
+  if (orderStatus === 'ORDER_EXPIRED' && transactionStatus === 'SUCCESS') {
+    throw new Error('Conflicting DOKU order and transaction status')
   }
 
   if (status !== 'SUCCESS') {
     return {
       status,
       isPaid: false,
+      // Channel EXPIRED/FAILED tidak membuktikan seluruh Checkout berakhir.
+      isOrderExpired: orderStatus === 'ORDER_EXPIRED',
       paidAt: null,
     }
   }
-
-  const originalRequestId =
-    response.transaction?.original_request_id
 
   if (
     !originalRequestId ||
@@ -70,6 +86,7 @@ export const verifyDokuPaymentStatus = (
   return {
     status,
     isPaid: true,
+    isOrderExpired: false,
     paidAt: paidAt.toISOString(),
   }
 }

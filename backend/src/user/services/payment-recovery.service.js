@@ -12,7 +12,14 @@ import {
 import {
   markPaymentPaid,
   scheduleNextPaymentReconciliation,
+  claimCheckoutRecovery,
+  saveDokuCheckoutResult,
+  markPaymentOrderExpired,
 } from '../repositories/payment.repository.js'
+import { createDokuCheckout } from '../clients/doku-checkout-client.js'
+import { parseDokuExpiredDate } from '../utils/doku-date.js'
+import { validateDokuConfig } from '../utils/doku-config.js'
+import { validateCheckoutSnapshot } from '../utils/doku-checkout-request.js'
 
 import {
   findPaymentsForReconciliation,
@@ -135,11 +142,54 @@ export const reconcileDokuPayment = async (paymentId) => {
 
   if (
     !initialPayment ||
-    !['pending', 'reconciling'].includes(
+    !['initiating', 'pending', 'reconciling'].includes(
       initialPayment.status
     )
   ) {
     return { status: 'skipped', paymentId }
+  }
+
+  // Jangan mengirim ulang transaksi ke environment/account lain setelah restart.
+  if (initialPayment.checkout_request_body) {
+    validateCheckoutSnapshot(
+      initialPayment.checkout_request_body,
+      initialPayment,
+      validateDokuConfig()
+    )
+  }
+
+  if (!initialPayment.payment_url) {
+    if (!initialPayment.checkout_request_body) {
+      // Transaksi legacy masih diperiksa statusnya, tetapi payload tidak ditebak.
+      console.warn('Legacy checkout requires operator review; replay skipped:', {
+        paymentId,
+        code: 'CHECKOUT_SNAPSHOT_MISSING',
+      })
+    } else {
+      const claimed = await claimCheckoutRecovery(paymentId)
+      if (!claimed) return { status: 'skipped', paymentId }
+
+      try {
+        const checkout = await createDokuCheckout({
+          invoiceNumber: claimed.invoice_number,
+          amount: claimed.amount,
+          requestId: claimed.doku_request_id,
+          snapshot: claimed.checkout_request_body,
+        })
+        await saveDokuCheckoutResult({
+          paymentId,
+          paymentUrl: checkout.paymentUrl,
+          expiredAt: parseDokuExpiredDate(checkout.expiredDate),
+        })
+      } catch (error) {
+        // Kegagalan replay tidak menghalangi pemeriksaan pembayaran sukses.
+        console.error('Checkout replay unresolved:', {
+          paymentId,
+          code: error.code ?? 'CHECKOUT_REPLAY_FAILED',
+          httpStatus: error.httpStatus,
+        })
+      }
+    }
   }
 
   // HTTP request dilakukan di luar DB transaction.
@@ -152,7 +202,7 @@ export const reconcileDokuPayment = async (paymentId) => {
     dokuResponse
   )
 
-  if (!verification.isPaid) {
+  if (!verification.isPaid && !verification.isOrderExpired) {
     return {
       status: 'awaiting_payment',
       paymentId,
@@ -194,7 +244,13 @@ export const reconcileDokuPayment = async (paymentId) => {
     }
 
     // Validasi ulang setelah mendapatkan row lock.
-    verifyDokuPaymentStatus(payment, dokuResponse)
+    const lockedVerification = verifyDokuPaymentStatus(payment, dokuResponse)
+
+    if (lockedVerification.isOrderExpired) {
+      const expired = await markPaymentOrderExpired(paymentId, client)
+      await client.query('COMMIT')
+      return { status: expired ? 'expired' : 'skipped', paymentId }
+    }
 
     if (
       payment.status === 'paid' &&
@@ -202,7 +258,7 @@ export const reconcileDokuPayment = async (paymentId) => {
     ) {
       await client.query('COMMIT')
     } else if (
-      ['pending', 'reconciling'].includes(payment.status)
+      ['initiating', 'pending', 'reconciling'].includes(payment.status)
     ) {
       const updated = await markPaymentPaid(
         paymentId,

@@ -1,5 +1,6 @@
 
 import { pool } from '../../config/database.js';
+import { buildCheckoutSnapshot } from '../utils/doku-checkout-request.js';
 
 export const findPremiumTier = async (client = pool) => {
   const { rows } = await client.query(`
@@ -62,7 +63,8 @@ export const findPaymentByIdAndUserId = async (
 export const createPayment = async ({
   userId,
   invoiceNumber,
-  dokuRequestId
+  dokuRequestId,
+  checkoutConfig
 }) => {
   const client = await pool.connect();
 
@@ -115,7 +117,9 @@ export const createPayment = async ({
     }
 
     if (
+      !Number.isSafeInteger(Number(tier.price)) ||
       Number(tier.price) <= 0 ||
+      Number(tier.price) > 999999999999 ||
       Number(tier.duration_value) !== 1 ||
       tier.duration_unit !== 'year'
     ) {
@@ -137,11 +141,12 @@ export const createPayment = async ({
           currency,
           duration_value,
           duration_unit,
-          status
+          status,
+          checkout_request_body
         )
         VALUES (
           $1, $2, $3, $4, $5,
-          'IDR', $6, $7, 'initiating'
+          'IDR', $6, $7, 'initiating', $8::jsonb
         )
         RETURNING *
       `,
@@ -152,7 +157,12 @@ export const createPayment = async ({
         dokuRequestId,
         tier.price,
         tier.duration_value,
-        tier.duration_unit
+        tier.duration_unit,
+        JSON.stringify(buildCheckoutSnapshot({
+          invoiceNumber,
+          amount: tier.price,
+          config: checkoutConfig
+        }))
       ]
     );
 
@@ -205,7 +215,7 @@ export const markPaymentPaid = async (
         next_reconciliation_at = NULL,
         updated_at = NOW()
       WHERE id = $1
-        AND status IN ('initiating', 'pending', 'reconciling')
+        AND status IN ('initiating', 'pending', 'reconciling', 'expired')
         AND paid_at IS NULL
         AND applied_at IS NULL
       RETURNING *
@@ -247,11 +257,46 @@ export const claimCheckoutInitialization = async (paymentId) => {
           updated_at = NOW()
       WHERE id = $1
         AND status = 'initiating'
+        AND checkout_request_body IS NOT NULL
       RETURNING *
     `,
     [paymentId]
   )
 
+  return rows[0] ?? null
+}
+
+export const claimCheckoutRecovery = async (paymentId) => {
+  const { rows } = await pool.query(
+    `
+      UPDATE payments
+      SET status = 'reconciling', updated_at = NOW()
+      WHERE id = $1
+        AND status IN ('initiating', 'reconciling')
+        AND checkout_request_body IS NOT NULL
+        AND payment_url IS NULL
+        AND paid_at IS NULL AND applied_at IS NULL
+        AND updated_at <= NOW() - INTERVAL '60 seconds'
+        AND (next_reconciliation_at IS NULL OR next_reconciliation_at <= NOW())
+      RETURNING *
+    `,
+    [paymentId]
+  )
+  return rows[0] ?? null
+}
+
+// Hanya order-level expiry terverifikasi, bukan kegagalan suatu channel.
+export const markPaymentOrderExpired = async (paymentId, client) => {
+  const { rows } = await client.query(
+    `
+      UPDATE payments SET status = 'expired', updated_at = NOW()
+      WHERE id = $1
+        AND status IN ('initiating', 'pending', 'reconciling')
+        AND paid_at IS NULL AND applied_at IS NULL
+      RETURNING *
+    `,
+    [paymentId]
+  )
   return rows[0] ?? null
 }
 
@@ -286,9 +331,8 @@ export const findPaymentsForReconciliation = async (
     `
       SELECT *
       FROM payments
-      WHERE status IN ('pending', 'reconciling')
+      WHERE status IN ('initiating', 'pending', 'reconciling')
         AND updated_at <= NOW() - INTERVAL '60 seconds'
-        AND reconciliation_attempt_count < 8
         AND (
           next_reconciliation_at IS NULL
           OR next_reconciliation_at <= NOW()
@@ -314,7 +358,6 @@ export const findUnappliedPaidPayments = async (
       WHERE status = 'paid'
         AND paid_at IS NOT NULL
         AND applied_at IS NULL
-        AND reconciliation_attempt_count < 8
         AND (
           next_reconciliation_at IS NULL
           OR next_reconciliation_at <= NOW()
@@ -331,12 +374,12 @@ export const findUnappliedPaidPayments = async (
 export const scheduleNextPaymentReconciliation = async (
   paymentId
 ) => {
-  await pool.query(
+  const { rows } = await pool.query(
     `
       UPDATE payments
       SET
         reconciliation_attempt_count =
-          reconciliation_attempt_count + 1,
+          LEAST(reconciliation_attempt_count + 1, 8),
         next_reconciliation_at = NOW()
           + (
             LEAST(
@@ -349,10 +392,17 @@ export const scheduleNextPaymentReconciliation = async (
           )
       WHERE id = $1
         AND (
-            status IN ('pending', 'reconciling')
+            status IN ('initiating', 'pending', 'reconciling')
             OR (status = 'paid' AND applied_at IS NULL)
         )
+      RETURNING reconciliation_attempt_count
     `,
     [paymentId]
   )
+  if (Number(rows[0]?.reconciliation_attempt_count) === 8) {
+    console.error('Payment recovery requires operator review; slow retries continue:', {
+      paymentId,
+      code: 'PAYMENT_RECOVERY_ESCALATED',
+    })
+  }
 }
