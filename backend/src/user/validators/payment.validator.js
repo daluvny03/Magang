@@ -1,0 +1,11 @@
+
+import Joi from 'joi';
+
+export const createCheckoutSchema = Joi.object({})
+  .unknown(false);
+
+export const paymentIdParamSchema = Joi.object({
+  id: Joi.string()
+    .pattern(/^[1-9]\d*$/)
+    .required()
+});

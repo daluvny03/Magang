@@ -224,14 +224,6 @@ export const startTryoutAttempt = async ({
       throw new AppError('Tryout not found', 404, 'TRYOUT_NOT_FOUND')
     }
 
-    if (!packageData.is_accessible) {
-      throw new AppError(
-        'You do not have access to this tryout',
-        403,
-        'TRYOUT_ACCESS_DENIED'
-      )
-    }
-
     /*
      * Resume tidak mengubah started_at maupun expires_at.
      */
@@ -282,8 +274,14 @@ export const startTryoutAttempt = async ({
       }
     }
 
-    // Schedule hanya membatasi pembuatan attempt baru. Gunakan waktu DB
-    // yang sama dengan perhitungan expires_at, termasuk batas yang inklusif.
+    if (!packageData.is_accessible) {
+      throw new AppError(
+        'You do not have access to this tryout',
+        403,
+        'TRYOUT_ACCESS_DENIED'
+      )
+    }
+
     const scheduleResult = await client.query(
       `
         SELECT

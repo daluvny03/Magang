@@ -24,7 +24,8 @@ const mapTryout = (row) => ({
   startAt: row.start_at,
   endAt: row.end_at,
   scheduleStatus: row.schedule_status,
-  isAccessible: row.is_accessible
+  isAccessible: row.is_accessible,
+requiredTier: row.required_tier
 });
 
 export const getAvailableTryoutsForUser = async (
