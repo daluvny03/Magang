@@ -6,6 +6,7 @@ import { env } from './config/env.js';
 import routes from './routes/index.js';
 import { notFoundMiddleware } from './middlewares/not-found.middleware.js';
 import { errorMiddleware } from './middlewares/error.middleware.js';
+import dokuWebhookRoutes from './user/routes/doku-webhook.routes.js'
 
 const app = express();
 
@@ -21,6 +22,10 @@ app.use(
     path.resolve('uploads')
   )
 );
+app.use(
+  '/api/v1/payments/doku',
+  dokuWebhookRoutes
+)
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
