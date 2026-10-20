@@ -40,5 +40,18 @@ export const env = {
     refreshSecret: process.env.JWT_REFRESH_SECRET,
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
-  }
+  },
+
+  doku: {
+    environment: process.env.DOKU_ENV || 'sandbox',
+    clientId: process.env.DOKU_CLIENT_ID,
+    secretKey: process.env.DOKU_SECRET_KEY,
+    baseUrl:
+      process.env.DOKU_BASE_URL ||
+      'https://api-sandbox.doku.com',
+    checkoutDueMinutes: Number(
+      process.env.DOKU_CHECKOUT_DUE_MINUTES || 60
+    ),
+  },
+
 };
