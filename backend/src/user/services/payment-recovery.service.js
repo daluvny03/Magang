@@ -11,6 +11,7 @@ import {
 
 import {
   markPaymentPaid,
+  saveDokuTransactionId,
   scheduleNextPaymentReconciliation,
   claimCheckoutRecovery,
   saveDokuCheckoutResult,
@@ -37,9 +38,6 @@ import {
 import {
   processRecordedDokuEvent,
 } from './payment-webhook.service.js'
-import {
-  markWebhookRecoveryFailed,
-} from '../repositories/payment-webhook.repository.js'
 
 
 export const getPaymentRecoveryCandidates = async () => {
@@ -116,7 +114,6 @@ export const recoverPendingWebhookEvents = async () => {
         eventId: event.id,
         code: error.code ?? 'WEBHOOK_RECOVERY_FAILED',
       })
-      await markWebhookRecoveryFailed(event.id)
 
       results.push({
         eventId: event.id,
@@ -252,6 +249,8 @@ export const reconcileDokuPayment = async (paymentId) => {
       return { status: expired ? 'expired' : 'skipped', paymentId }
     }
 
+    await saveDokuTransactionId(paymentId, lockedVerification.transactionId, client)
+
     if (
       payment.status === 'paid' &&
       payment.paid_at
@@ -262,7 +261,7 @@ export const reconcileDokuPayment = async (paymentId) => {
     ) {
       const updated = await markPaymentPaid(
         paymentId,
-        verification.paidAt,
+        lockedVerification.paidAt,
         client
       )
 

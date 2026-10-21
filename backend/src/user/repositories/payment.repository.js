@@ -198,6 +198,27 @@ export const findPaymentForUpdate = async (
   return rows[0] || null;
 };
 
+// Dipanggil dalam transaksi yang sama dengan markPaymentPaid, setelah row lock
+// dan validasi bukti SUCCESS. Identifier existing tidak pernah ditimpa.
+export const saveDokuTransactionId = async (paymentId, transactionId, client) => {
+  if (transactionId == null) return
+  const { rowCount } = await client.query(
+    `
+      UPDATE payments
+      SET doku_transaction_id = COALESCE(doku_transaction_id, $2),
+          updated_at = NOW()
+      WHERE id = $1
+        AND (doku_transaction_id IS NULL OR doku_transaction_id = $2)
+    `,
+    [paymentId, transactionId]
+  )
+  if (rowCount !== 1) {
+    const error = new Error('DOKU transaction identifier conflict')
+    error.code = 'DOKU_TRANSACTION_ID_CONFLICT'
+    throw error
+  }
+}
+
 // Hanya dipanggil setelah bukti pembayaran diverifikasi, dengan row lock.
 // applied_at tetap menjadi tanggung jawab transaksi subscription lifecycle.
 export const markPaymentPaid = async (

@@ -136,13 +136,12 @@ export const findRecoverableWebhookEvents = async (
       FROM payment_webhook_events
       WHERE provider = 'doku'
         AND processing_status IN ('received', 'failed')
-        AND attempt_count < 8
         AND (
           next_retry_at IS NULL
           OR next_retry_at <= NOW()
         )
         AND received_at <= NOW() - INTERVAL '60 seconds'
-      ORDER BY received_at ASC, id ASC
+      ORDER BY COALESCE(next_retry_at, received_at) ASC, id ASC
       LIMIT $1
     `,
     [limit]
@@ -151,16 +150,16 @@ export const findRecoverableWebhookEvents = async (
   return rows
 }
 
-export const markWebhookRecoveryFailed = async (
+export const markWebhookProcessingFailed = async (
   eventId
 ) => {
-  await pool.query(
+  const { rows } = await pool.query(
     `
       UPDATE payment_webhook_events
       SET
         processing_status = 'failed',
         attempt_count = attempt_count + 1,
-        error_message = 'Recovery processing failed',
+        error_message = 'Webhook processing failed',
         next_retry_at = NOW()
           + (
             LEAST(
@@ -169,8 +168,19 @@ export const markWebhookRecoveryFailed = async (
             ) * INTERVAL '1 second'
           )
       WHERE id = $1
+        AND provider = 'doku'
         AND processing_status <> 'processed'
+      RETURNING attempt_count
     `,
     [eventId]
   )
+
+  // Tetap dapat dipulihkan setelah batas eskalasi; backoff dibatasi satu jam.
+  if (rows[0]?.attempt_count >= 8) {
+    console.error('Webhook requires operator review:', {
+      eventId,
+      attemptCount: rows[0].attempt_count,
+      code: 'WEBHOOK_RECOVERY_ESCALATED',
+    })
+  }
 }

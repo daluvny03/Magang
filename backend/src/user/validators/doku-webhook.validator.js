@@ -1,5 +1,7 @@
 
-const MAX_TIMESTAMP_DRIFT_MS = 10 * 60 * 1000
+import { parseDokuTransactionDate } from './doku-payment-evidence.validator.js'
+
+const MAX_FUTURE_TIMESTAMP_DRIFT_MS = 10 * 60 * 1000
 
 const UTC_TIMESTAMP_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/
@@ -41,15 +43,16 @@ export const validateDokuWebhookHeaders = ({
     return false
   }
 
-  const timestamp = Date.parse(requestTimestamp)
-
-  if (!Number.isFinite(timestamp)) {
+  let timestamp
+  try {
+    timestamp = Date.parse(parseDokuTransactionDate(requestTimestamp))
+  } catch {
     return false
   }
 
-  const drift = Math.abs(Date.now() - timestamp)
-
-  if (drift > MAX_TIMESTAMP_DRIFT_MS) {
+  // Retry otomatis/manual dapat membawa timestamp lama. Authenticity tetap
+  // wajib diverifikasi controller; replay ditangani durable event + applied_at.
+  if (timestamp - Date.now() > MAX_FUTURE_TIMESTAMP_DRIFT_MS) {
     return false
   }
 

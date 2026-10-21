@@ -4,11 +4,14 @@ import {
   findWebhookEventByRequestId,
   saveWebhookEvent,
   isSameWebhookPayload,
+  markWebhookProcessingFailed,
 } from '../repositories/payment-webhook.repository.js'
 import { pool } from '../../config/database.js'
 
-import { markPaymentPaid } from
+import { markPaymentPaid, saveDokuTransactionId } from
   '../repositories/payment.repository.js'
+import { verifyDokuPaymentIdentity, parseDokuTransactionDate } from '../validators/doku-payment-evidence.validator.js'
+import { extractDokuTransactionId } from '../utils/doku-transaction-identifier.js'
 
 import { applyVerifiedPremiumPayment } from
   './subscription-lifecycle.service.js'
@@ -26,25 +29,25 @@ export const recordDokuWebhook = async ({
     return { status: 'payment_not_found' }
   }
 
-  const amount = Number(payload.order.amount)
-  const expectedAmount = Number(payment.amount)
-
-  if (
-    !Number.isSafeInteger(amount) ||
-    amount <= 0 ||
-    amount !== expectedAmount ||
-    payment.currency !== 'IDR'
-  ) {
-    return { status: 'payment_mismatch' }
+  // ACK event yang sudah selesai tetap kompatibel dengan data sebelum patch.
+  // Signature telah diverifikasi controller dan seluruh payload harus identik.
+  const previous = await findWebhookEventByRequestId(requestId)
+  if (previous?.processing_status === 'processed') {
+    const matches = await isSameWebhookPayload({
+      requestId,
+      paymentId: payment.id,
+      invoiceNumber,
+      transactionStatus,
+      payload,
+    })
+    return matches
+      ? { status: 'duplicate', eventId: previous.id, processingStatus: 'processed' }
+      : { status: 'event_conflict' }
   }
 
-  const originalRequestId =
-    payload.transaction.original_request_id
-
-  if (
-    originalRequestId != null &&
-    originalRequestId !== payment.doku_request_id
-  ) {
+  try {
+    verifyDokuPaymentIdentity(payment, payload)
+  } catch {
     return { status: 'payment_mismatch' }
   }
 
@@ -77,11 +80,11 @@ export const recordDokuWebhook = async ({
     invoiceNumber,
     transactionStatus,
     payload,
-    })
+  })
 
-    if (!matches) {
+  if (!matches) {
     return { status: 'event_conflict' }
-    }
+  }
 
   return {
     status: 'duplicate',
@@ -91,6 +94,25 @@ export const recordDokuWebhook = async ({
 }
 
 export const processRecordedDokuEvent = async (eventId) => {
+  try {
+    return await processDokuEvent(eventId)
+  } catch (error) {
+    // Semua caller memakai pencatatan yang sama. Transaksi processing sudah
+    // di-rollback dan koneksinya dilepas sebelum kegagalan disimpan.
+    try {
+      await markWebhookProcessingFailed(eventId)
+    } catch (recordError) {
+      // Jangan mengganti error processing asli atau mencatat payload/secret.
+      console.error('Webhook failure persistence failed:', {
+        eventId,
+        code: recordError.code ?? 'WEBHOOK_FAILURE_PERSISTENCE_FAILED',
+      })
+    }
+    throw error
+  }
+}
+
+const processDokuEvent = async (eventId) => {
   const client = await pool.connect()
 
   let event
@@ -173,24 +195,13 @@ export const processRecordedDokuEvent = async (eventId) => {
 
     // Validasi ulang terhadap row payment yang telah dikunci.
     const payload = event.payload
-    const amount = Number(payload.order?.amount)
-
     if (
       event.invoice_number !== payment.invoice_number ||
-      payload.order?.invoice_number !== payment.invoice_number ||
-      !Number.isSafeInteger(amount) ||
-      amount !== Number(payment.amount) ||
-      payment.currency !== 'IDR'
+      event.transaction_status !== payload.transaction?.status
     ) {
       throw new Error('Webhook payment data mismatch')
     }
-
-    if (
-      payload.transaction?.original_request_id != null &&
-      payload.transaction.original_request_id !== payment.doku_request_id
-    ) {
-      throw new Error('Webhook request identifier mismatch')
-    }
+    verifyDokuPaymentIdentity(payment, payload)
 
     const status = event.transaction_status
 
@@ -201,7 +212,8 @@ export const processRecordedDokuEvent = async (eventId) => {
           SET processing_status = 'processed',
               processed_at = NOW(),
               attempt_count = attempt_count + 1,
-              error_message = NULL
+              error_message = NULL,
+              next_retry_at = NULL
           WHERE id = $1
         `,
         [eventId]
@@ -215,24 +227,15 @@ export const processRecordedDokuEvent = async (eventId) => {
       }
     }
 
-    const transactionDate = payload.transaction?.date
-    const parsedDate = transactionDate
-      ? new Date(transactionDate)
-      : null
-
-    if (
-      !parsedDate ||
-      !Number.isFinite(parsedDate.getTime()) ||
-      !/Z$|[+-]\d{2}:\d{2}$/.test(transactionDate)
-    ) {
-      throw new Error('Invalid DOKU transaction date')
-    }
+    const paidAt = parseDokuTransactionDate(payload.transaction?.date)
+    const transactionId = extractDokuTransactionId(payload)
+    await saveDokuTransactionId(paymentId, transactionId, client)
 
     // Duplicate SUCCESS tidak boleh menulis applied_at atau mengganti paid_at.
     if (payment.status !== 'paid' || !payment.paid_at) {
       const paid = await markPaymentPaid(
         paymentId,
-        parsedDate.toISOString(),
+        paidAt,
         client
       )
 
@@ -259,7 +262,8 @@ export const processRecordedDokuEvent = async (eventId) => {
       SET processing_status = 'processed',
           processed_at = NOW(),
           attempt_count = attempt_count + 1,
-          error_message = NULL
+          error_message = NULL,
+          next_retry_at = NULL
       WHERE id = $1
         AND processing_status <> 'processed'
     `,

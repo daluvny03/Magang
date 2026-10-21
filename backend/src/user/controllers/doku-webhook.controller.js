@@ -1,10 +1,10 @@
 import { validateDokuWebhookHeaders } from '../validators/doku-webhook.validator.js'
 import { verifyDokuSignature } from '../utils/doku-signature.js'
 import { env } from '../../config/env.js'
-import { 
-    recordDokuWebhook,
-    processRecordedDokuEvent,
- } from '../services/payment-webhook.service.js'
+import {
+  recordDokuWebhook,
+  processRecordedDokuEvent,
+} from '../services/payment-webhook.service.js'
 
 const NOTIFICATION_TARGET =
   '/api/v1/payments/doku/notifications'
@@ -76,42 +76,47 @@ export const receiveDokuNotification = async (req, res) => {
     return res.sendStatus(400)
   }
 
-    try {
+  let eventId = null
+
+  try {
     const result = await recordDokuWebhook({
-        requestId,
-        payload,
+      requestId,
+      payload,
     })
 
     if (
-        result.status === 'payment_not_found' ||
-        result.status === 'payment_mismatch'
+      result.status === 'payment_not_found' ||
+      result.status === 'payment_mismatch'
     ) {
-        return res.sendStatus(422)
+      return res.sendStatus(422)
     }
 
     if (result.status === 'event_conflict') {
-        return res.sendStatus(409)
+      return res.sendStatus(409)
     }
 
     if (
-        result.status === 'duplicate' &&
-        result.processingStatus === 'processed'
+      result.status === 'duplicate' &&
+      result.processingStatus === 'processed'
     ) {
-        return res.sendStatus(200)
+      return res.sendStatus(200)
     }
 
     if (!result.eventId) {
-        return res.sendStatus(503)
+      return res.sendStatus(503)
     }
 
-    await processRecordedDokuEvent(result.eventId)
+    eventId = result.eventId
+    await processRecordedDokuEvent(eventId)
 
     return res.sendStatus(200)
-    } catch (error) {
+  } catch (error) {
     console.error('DOKU webhook processing failed:', {
-        code: error.code ?? 'WEBHOOK_PROCESSING_ERROR',
+      eventId,
+      requestId,
+      code: error.code ?? 'WEBHOOK_PROCESSING_ERROR',
     })
 
     return res.sendStatus(503)
-    }
+  }
 }

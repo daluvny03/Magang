@@ -9,7 +9,6 @@ import {
 
 import {
   findRecoverableWebhookEvents,
-  markWebhookRecoveryFailed,
 } from '../repositories/payment-webhook.repository.js'
 
 import {
@@ -57,8 +56,6 @@ const runRecoveryBatch = async () => {
           eventId: event.id,
           code: error.code ?? 'RECOVERY_FAILED',
         })
-
-        await markWebhookRecoveryFailed(event.id)
       }
     }
 
