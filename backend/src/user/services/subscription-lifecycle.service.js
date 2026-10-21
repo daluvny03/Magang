@@ -48,9 +48,11 @@ const parseUtcTimestamp = (value) => {
 };
 
 export const applyVerifiedPremiumPayment = async (
-  paymentId
+  paymentId,
+  db = pool
 ) => {
-  const client = await pool.connect();
+  const client = await db.connect();
+  let recoveryTransactionFailed = false;
 
   try {
     await client.query('BEGIN');
@@ -226,9 +228,12 @@ export const applyVerifiedPremiumPayment = async (
       subscriptionId: String(subscription.id)
     };
   } catch (error) {
-    await client.query('ROLLBACK');
+    recoveryTransactionFailed = db !== pool;
+    try { await client.query('ROLLBACK'); } catch {
+      recoveryTransactionFailed = true;
+    }
     throw error;
   } finally {
-    client.release();
+    client.release(recoveryTransactionFailed);
   }
 };

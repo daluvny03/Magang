@@ -25,7 +25,20 @@ export const buildCheckoutSnapshot = ({ invoiceNumber, amount, config }) => ({
   },
 })
 
+export const validateCheckoutAccount = (snapshot, config) => {
+  if (
+    !snapshot ||
+    snapshot.environment !== config.environment ||
+    snapshot.clientId !== config.clientId
+  ) {
+    const error = new Error('Checkout DOKU account cannot be verified')
+    error.code = 'DOKU_CHECKOUT_ACCOUNT_MISMATCH'
+    throw error
+  }
+}
+
 export const validateCheckoutSnapshot = (snapshot, payment, config) => {
+  validateCheckoutAccount(snapshot, config)
   const body = snapshot?.body
   if (
     snapshot?.version !== 1 ||

@@ -221,6 +221,8 @@ export const saveDokuTransactionId = async (paymentId, transactionId, client) =>
 
 // Hanya dipanggil setelah bukti pembayaran diverifikasi, dengan row lock.
 // applied_at tetap menjadi tanggung jawab transaksi subscription lifecycle.
+// SUCCESS terverifikasi yang terlambat tetap dihormati setelah operator menutup
+// payment sebagai cancelled; catatan recovery_resolution tetap dipertahankan.
 export const markPaymentPaid = async (
   paymentId,
   paidAt,
@@ -236,7 +238,7 @@ export const markPaymentPaid = async (
         next_reconciliation_at = NULL,
         updated_at = NOW()
       WHERE id = $1
-        AND status IN ('initiating', 'pending', 'reconciling', 'expired')
+        AND status IN ('initiating', 'pending', 'reconciling', 'expired', 'cancelled')
         AND paid_at IS NULL
         AND applied_at IS NULL
       RETURNING *
@@ -287,8 +289,8 @@ export const claimCheckoutInitialization = async (paymentId) => {
   return rows[0] ?? null
 }
 
-export const claimCheckoutRecovery = async (paymentId) => {
-  const { rows } = await pool.query(
+export const claimCheckoutRecovery = async (paymentId, db = pool) => {
+  const { rows } = await db.query(
     `
       UPDATE payments
       SET status = 'reconciling', updated_at = NOW()
@@ -325,8 +327,8 @@ export const saveDokuCheckoutResult = async ({
   paymentId,
   paymentUrl,
   expiredAt,
-}) => {
-  const { rows } = await pool.query(
+}, db = pool) => {
+  const { rows } = await db.query(
     `
       UPDATE payments
       SET payment_url = $2,
@@ -346,9 +348,10 @@ export const saveDokuCheckoutResult = async ({
 }
 
 export const findPaymentsForReconciliation = async (
-  limit = 20
+  limit = 20,
+  db = pool
 ) => {
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `
       SELECT *
       FROM payments
@@ -370,9 +373,10 @@ export const findPaymentsForReconciliation = async (
 }
 
 export const findUnappliedPaidPayments = async (
-  limit = 20
+  limit = 20,
+  db = pool
 ) => {
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `
       SELECT *
       FROM payments
@@ -393,9 +397,10 @@ export const findUnappliedPaidPayments = async (
 }
 
 export const scheduleNextPaymentReconciliation = async (
-  paymentId
+  paymentId,
+  db = pool
 ) => {
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `
       UPDATE payments
       SET

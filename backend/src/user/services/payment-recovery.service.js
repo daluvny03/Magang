@@ -1,5 +1,5 @@
 
-import { pool } from '../../config/database.js'
+import { recoveryPool } from '../../config/payment-recovery-database.js'
 
 import {
   checkDokuPaymentStatus,
@@ -20,7 +20,7 @@ import {
 import { createDokuCheckout } from '../clients/doku-checkout-client.js'
 import { parseDokuExpiredDate } from '../utils/doku-date.js'
 import { validateDokuConfig } from '../utils/doku-config.js'
-import { validateCheckoutSnapshot } from '../utils/doku-checkout-request.js'
+import { validateCheckoutAccount, validateCheckoutSnapshot } from '../utils/doku-checkout-request.js'
 
 import {
   findPaymentsForReconciliation,
@@ -40,13 +40,13 @@ import {
 } from './payment-webhook.service.js'
 
 
-export const getPaymentRecoveryCandidates = async () => {
+export const getPaymentRecoveryCandidates = async (db = recoveryPool) => {
   const [
     reconciliationPayments,
     unappliedPayments,
   ] = await Promise.all([
-    findPaymentsForReconciliation(20),
-    findUnappliedPaidPayments(20),
+    findPaymentsForReconciliation(20, db),
+    findUnappliedPaidPayments(20, db),
   ])
 
   return {
@@ -55,15 +55,16 @@ export const getPaymentRecoveryCandidates = async () => {
   }
 }
 
-export const recoverUnappliedPremiumPayments = async () => {
-  const payments = await findUnappliedPaidPayments(20)
+export const recoverUnappliedPremiumPayments = async (db = recoveryPool) => {
+  const payments = await findUnappliedPaidPayments(20, db)
 
   const results = []
 
   for (const payment of payments) {
     try {
       const result = await applyVerifiedPremiumPayment(
-        payment.id
+        payment.id,
+        db
       )
 
       results.push({
@@ -73,7 +74,7 @@ export const recoverUnappliedPremiumPayments = async () => {
       })
     } catch (error) {
       try {
-        await scheduleNextPaymentReconciliation(payment.id)
+        await scheduleNextPaymentReconciliation(payment.id, db)
       } catch (retryError) {
         console.error('Premium recovery retry scheduling failed:', {
           paymentId: payment.id,
@@ -95,14 +96,15 @@ export const recoverUnappliedPremiumPayments = async () => {
   return results
 }
 
-export const recoverPendingWebhookEvents = async () => {
-  const events = await findRecoverableWebhookEvents(20)
+export const recoverPendingWebhookEvents = async (db = recoveryPool) => {
+  const events = await findRecoverableWebhookEvents(20, db)
   const results = []
 
   for (const event of events) {
     try {
       const result = await processRecordedDokuEvent(
-        event.id
+        event.id,
+        db
       )
 
       results.push({
@@ -125,8 +127,11 @@ export const recoverPendingWebhookEvents = async () => {
   return results
 }
 
-export const reconcileDokuPayment = async (paymentId) => {
-  const initialResult = await pool.query(
+export const reconcileDokuPayment = async (
+  paymentId,
+  { db = recoveryPool, allowReplay = true, includeClosed = false } = {}
+) => {
+  const initialResult = await db.query(
     `
       SELECT *
       FROM payments
@@ -137,25 +142,40 @@ export const reconcileDokuPayment = async (paymentId) => {
 
   const initialPayment = initialResult.rows[0]
 
+  const eligibleStatuses = ['initiating', 'pending', 'reconciling']
+  if (includeClosed && !allowReplay) eligibleStatuses.push('expired', 'cancelled')
   if (
     !initialPayment ||
-    !['initiating', 'pending', 'reconciling'].includes(
+    !eligibleStatuses.includes(
       initialPayment.status
     )
   ) {
     return { status: 'skipped', paymentId }
   }
 
-  // Jangan mengirim ulang transaksi ke environment/account lain setelah restart.
+  // Identitas account wajib cocok, tetapi kerusakan body replay tidak boleh
+  // menghalangi inquiry ke account yang sudah teridentifikasi.
+  const config = validateDokuConfig()
   if (initialPayment.checkout_request_body) {
-    validateCheckoutSnapshot(
-      initialPayment.checkout_request_body,
-      initialPayment,
-      validateDokuConfig()
-    )
+    validateCheckoutAccount(initialPayment.checkout_request_body, config)
   }
 
-  if (!initialPayment.payment_url) {
+  let dokuResponse
+  let verification
+  let inquiryError
+  try {
+    dokuResponse = await checkDokuPaymentStatus({
+      invoiceNumber: initialPayment.invoice_number,
+    })
+    verification = verifyDokuPaymentStatus(initialPayment, dokuResponse)
+  } catch (error) {
+    inquiryError = error
+  }
+
+  // Inquiry selalu lebih dahulu, termasuk pending tanpa URL dan claim gagal.
+  // Jangan replay transaksi yang sudah terbukti paid atau order expired.
+  if (allowReplay && !initialPayment.payment_url &&
+      !verification?.isPaid && !verification?.isOrderExpired) {
     if (!initialPayment.checkout_request_body) {
       // Transaksi legacy masih diperiksa statusnya, tetapi payload tidak ditebak.
       console.warn('Legacy checkout requires operator review; replay skipped:', {
@@ -163,23 +183,24 @@ export const reconcileDokuPayment = async (paymentId) => {
         code: 'CHECKOUT_SNAPSHOT_MISSING',
       })
     } else {
-      const claimed = await claimCheckoutRecovery(paymentId)
-      if (!claimed) return { status: 'skipped', paymentId }
-
       try {
-        const checkout = await createDokuCheckout({
-          invoiceNumber: claimed.invoice_number,
-          amount: claimed.amount,
-          requestId: claimed.doku_request_id,
-          snapshot: claimed.checkout_request_body,
-        })
-        await saveDokuCheckoutResult({
-          paymentId,
-          paymentUrl: checkout.paymentUrl,
-          expiredAt: parseDokuExpiredDate(checkout.expiredDate),
-        })
+        validateCheckoutSnapshot(initialPayment.checkout_request_body, initialPayment, config)
+        const claimed = await claimCheckoutRecovery(paymentId, db)
+        if (claimed) {
+          const checkout = await createDokuCheckout({
+            invoiceNumber: claimed.invoice_number,
+            amount: claimed.amount,
+            requestId: claimed.doku_request_id,
+            snapshot: claimed.checkout_request_body,
+          })
+          await saveDokuCheckoutResult({
+            paymentId,
+            paymentUrl: checkout.paymentUrl,
+            expiredAt: parseDokuExpiredDate(checkout.expiredDate),
+          }, db)
+        }
       } catch (error) {
-        // Kegagalan replay tidak menghalangi pemeriksaan pembayaran sukses.
+        // Kegagalan replay tidak menghilangkan hasil inquiry.
         console.error('Checkout replay unresolved:', {
           paymentId,
           code: error.code ?? 'CHECKOUT_REPLAY_FAILED',
@@ -189,15 +210,7 @@ export const reconcileDokuPayment = async (paymentId) => {
     }
   }
 
-  // HTTP request dilakukan di luar DB transaction.
-  const dokuResponse = await checkDokuPaymentStatus({
-    invoiceNumber: initialPayment.invoice_number,
-  })
-
-  const verification = verifyDokuPaymentStatus(
-    initialPayment,
-    dokuResponse
-  )
+  if (inquiryError) throw inquiryError
 
   if (!verification.isPaid && !verification.isOrderExpired) {
     return {
@@ -207,7 +220,8 @@ export const reconcileDokuPayment = async (paymentId) => {
     }
   }
 
-  const client = await pool.connect()
+  const client = await db.connect()
+  let transactionFailed = false
 
   try {
     await client.query('BEGIN')
@@ -257,7 +271,9 @@ export const reconcileDokuPayment = async (paymentId) => {
     ) {
       await client.query('COMMIT')
     } else if (
-      ['initiating', 'pending', 'reconciling'].includes(payment.status)
+      // SUCCESS yang sudah diverifikasi tetap dihormati bila order ditutup
+      // setelah inquiry dimulai; guarded update tetap menolak double paid.
+      ['initiating', 'pending', 'reconciling', 'expired', 'cancelled'].includes(payment.status)
     ) {
       const updated = await markPaymentPaid(
         paymentId,
@@ -279,14 +295,16 @@ export const reconcileDokuPayment = async (paymentId) => {
       }
     }
   } catch (error) {
-    await client.query('ROLLBACK')
+    transactionFailed = true
+    try { await client.query('ROLLBACK') } catch { /* Buang koneksi di finally. */ }
     throw error
   } finally {
-    client.release()
+    client.release(transactionFailed)
   }
 
   const application = await applyVerifiedPremiumPayment(
-    paymentId
+    paymentId,
+    db
   )
 
   return {

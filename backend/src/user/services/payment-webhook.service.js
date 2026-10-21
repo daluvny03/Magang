@@ -93,14 +93,14 @@ export const recordDokuWebhook = async ({
   }
 }
 
-export const processRecordedDokuEvent = async (eventId) => {
+export const processRecordedDokuEvent = async (eventId, db = pool) => {
   try {
-    return await processDokuEvent(eventId)
+    return await processDokuEvent(eventId, db)
   } catch (error) {
     // Semua caller memakai pencatatan yang sama. Transaksi processing sudah
     // di-rollback dan koneksinya dilepas sebelum kegagalan disimpan.
     try {
-      await markWebhookProcessingFailed(eventId)
+      await markWebhookProcessingFailed(eventId, db)
     } catch (recordError) {
       // Jangan mengganti error processing asli atau mencatat payload/secret.
       console.error('Webhook failure persistence failed:', {
@@ -112,8 +112,9 @@ export const processRecordedDokuEvent = async (eventId) => {
   }
 }
 
-const processDokuEvent = async (eventId) => {
-  const client = await pool.connect()
+const processDokuEvent = async (eventId, db) => {
+  const client = await db.connect()
+  let recoveryTransactionFailed = false
 
   let event
   let paymentId = null
@@ -246,17 +247,18 @@ const processDokuEvent = async (eventId) => {
 
     await client.query('COMMIT')
   } catch (error) {
-    await client.query('ROLLBACK')
+    recoveryTransactionFailed = db !== pool
+    try { await client.query('ROLLBACK') } catch { recoveryTransactionFailed = true }
     throw error
   } finally {
-    client.release()
+    client.release(recoveryTransactionFailed)
   }
 
   // Lifecycle existing menjalankan transaksi sendiri.
   // Jika gagal, payment tetap paid dan dapat diproses ulang.
-  const application = await applyVerifiedPremiumPayment(paymentId)
+  const application = await applyVerifiedPremiumPayment(paymentId, db)
 
-  await pool.query(
+  await db.query(
     `
       UPDATE payment_webhook_events
       SET processing_status = 'processed',

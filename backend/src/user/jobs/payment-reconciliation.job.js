@@ -1,9 +1,8 @@
 
-import { pool } from '../../config/database.js'
+import { recoveryPool as pool } from '../../config/payment-recovery-database.js'
 
 import {
   findPaymentsForReconciliation,
-  findUnappliedPaidPayments,
   scheduleNextPaymentReconciliation,
 } from '../repositories/payment.repository.js'
 
@@ -43,46 +42,70 @@ const runRecoveryBatch = async () => {
 
     if (!lockAcquired) return
 
-    // 1. Recovery webhook.
-    const events = await findRecoverableWebhookEvents(
-      BATCH_SIZE
-    )
-
-    for (const event of events) {
+    const failures = { webhook: 0, payment: 0, scheduling: 0, activation: 0, phase: 0 }
+    const runPhase = async (phase, work) => {
       try {
-        await processRecordedDokuEvent(event.id)
+        await work()
       } catch (error) {
-        console.error('Webhook recovery error:', {
-          eventId: event.id,
-          code: error.code ?? 'RECOVERY_FAILED',
+        failures.phase += 1
+        console.error('Payment recovery phase failed:', {
+          phase,
+          code: error.code ?? 'RECOVERY_PHASE_FAILED',
         })
       }
     }
+
+    // 1. Recovery webhook.
+    await runPhase('webhook', async () => {
+      const events = await findRecoverableWebhookEvents(BATCH_SIZE, pool)
+
+      for (const event of events) {
+        try {
+          await processRecordedDokuEvent(event.id, pool)
+        } catch (error) {
+          failures.webhook += 1
+          console.error('Webhook recovery error:', {
+            eventId: event.id,
+            code: error.code ?? 'RECOVERY_FAILED',
+          })
+        }
+      }
+    })
 
     // 2. Pemeriksaan status DOKU.
-    const payments = await findPaymentsForReconciliation(
-      BATCH_SIZE
-    )
+    await runPhase('payment', async () => {
+      const payments = await findPaymentsForReconciliation(BATCH_SIZE, pool)
 
-    for (const payment of payments) {
-      try {
-        await reconcileDokuPayment(payment.id)
-      } catch (error) {
-        console.error('Payment reconciliation error:', {
-          paymentId: payment.id,
-          code: error.code ?? 'RECONCILIATION_FAILED',
-        })
-      } finally {
-        await scheduleNextPaymentReconciliation(
-          payment.id
-        )
+      for (const payment of payments) {
+        try {
+          await reconcileDokuPayment(payment.id, { db: pool })
+        } catch (error) {
+          failures.payment += 1
+          console.error('Payment reconciliation error:', {
+            paymentId: payment.id,
+            code: error.code ?? 'RECONCILIATION_FAILED',
+          })
+        } finally {
+          try {
+            await scheduleNextPaymentReconciliation(payment.id, pool)
+          } catch (error) {
+            failures.scheduling += 1
+            console.error('Payment retry scheduling failed:', {
+              paymentId: payment.id,
+              code: error.code ?? 'RETRY_SCHEDULING_FAILED',
+            })
+          }
+        }
       }
-    }
+    })
 
     // 3. Aktivasi pembayaran yang sudah paid.
-    await recoverUnappliedPremiumPayments()
+    await runPhase('activation', async () => {
+      const results = await recoverUnappliedPremiumPayments(pool)
+      failures.activation = results.filter((result) => result.status === 'failed').length
+    })
 
-    console.info('Payment recovery batch completed')
+    console.info('Payment recovery batch finished:', { failures })
   } finally {
     if (lockAcquired) {
       try {

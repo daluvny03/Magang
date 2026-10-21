@@ -128,9 +128,10 @@ export const isSameWebhookPayload = async ({
 
 
 export const findRecoverableWebhookEvents = async (
-  limit = 20
+  limit = 20,
+  db = pool
 ) => {
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `
       SELECT id, payment_id, processing_status
       FROM payment_webhook_events
@@ -151,9 +152,10 @@ export const findRecoverableWebhookEvents = async (
 }
 
 export const markWebhookProcessingFailed = async (
-  eventId
+  eventId,
+  db = pool
 ) => {
-  const { rows } = await pool.query(
+  const { rows } = await db.query(
     `
       UPDATE payment_webhook_events
       SET
