@@ -5,6 +5,7 @@ import { useTryouts } from '../hooks/useTryouts'
 import TryoutCard from '../components/tryout/TryoutCard'
 import TryoutFilter from '../components/tryout/TryoutFilter'
 import { useNavigate } from 'react-router-dom'
+import { hasActiveTryoutAttempt } from '../utils/tryout-availability'
 
 function TryoutPage() {
     const navigate = useNavigate()
@@ -21,13 +22,13 @@ function TryoutPage() {
     const filteredTryouts = tryouts.filter((tryout) => {
         switch (activeFilter) {
             case 'accessible':
-                return tryout.isAccessible
+                return tryout.isAccessible || hasActiveTryoutAttempt(tryout)
 
             case 'free':
                 return tryout.isFree
 
             case 'locked':
-                return !tryout.isAccessible
+                return !tryout.isAccessible && !hasActiveTryoutAttempt(tryout)
 
             default:
                 return true
@@ -114,6 +115,7 @@ function TryoutPage() {
                                 tryout={tryout}
                                 onDetail={handleDetail}
                                 onSubscribe={handleSubscribe}
+                                onResume={(item) => navigate(`/user/cat/${item.activeAttempt.id}`)}
                             />
                         ))}
                     </div>

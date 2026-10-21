@@ -1,14 +1,15 @@
 import api from '../../services/api'
 
-export const getUserTryouts = async () => {
-  const response = await api.get('/user/tryouts')
+export const getUserTryouts = async ({ signal } = {}) => {
+  const response = await api.get('/user/tryouts', { signal })
 
   return response.data
 }
 
-export const getUserTryoutById = async (tryoutId) => {
+export const getUserTryoutById = async (tryoutId, { signal } = {}) => {
   const response = await api.get(
-    `/user/tryouts/${tryoutId}`
+    `/user/tryouts/${tryoutId}`,
+    { signal }
   )
 
   return response.data

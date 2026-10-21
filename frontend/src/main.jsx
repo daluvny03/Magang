@@ -15,14 +15,15 @@ const queryClient = new QueryClient({
   },
 })
 
-// Cleanup terbatas pada data pribadi yang dipakai alur subscription/Profile.
+// Cleanup data pribadi subscription, Profile, dan CAT saat identitas berubah.
 // Struktur token dan perilaku login tetap ditangani Auth Store existing.
 const unsubscribePrivateCache = useAuthStore.subscribe((state, previous) => {
   if (state.user?.id === previous.user?.id) return
 
   const filters = {
     predicate: (query) =>
-      ['user-subscription', 'user-payment', 'user-profile'].includes(query.queryKey[0]) &&
+      ['user-subscription', 'user-payment', 'user-profile', 'user-tryouts',
+        'user-tryout-detail', 'attempt-questions', 'user-attempt-result', 'user'].includes(query.queryKey[0]) &&
       query.queryKey[1] !== state.user?.id,
   }
   void queryClient.cancelQueries(filters)

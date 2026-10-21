@@ -212,18 +212,6 @@ export const startTryoutAttempt = async ({
       ]
     )
 
-    // Jadwal tidak menghalangi resume, tetapi publish dan subscription
-    // tetap diperiksa. Lock menjaga konfigurasi paket selama start.
-    const packageData = await findAvailableTryoutByIdForUser(
-      userId,
-      tryoutPackageId,
-      { client, ignoreSchedule: true, lockPackage: true }
-    )
-
-    if (!packageData) {
-      throw new AppError('Tryout not found', 404, 'TRYOUT_NOT_FOUND')
-    }
-
     /*
      * Resume tidak mengubah started_at maupun expires_at.
      */
@@ -251,11 +239,11 @@ export const startTryoutAttempt = async ({
           WHERE user_id = $1
             AND tryout_package_id = $2
             AND status = 'in_progress'
-            AND expires_at > CURRENT_TIMESTAMP
 
           ORDER BY attempt_number DESC
 
           LIMIT 1
+          FOR UPDATE
         `,
         [
           userId,
@@ -263,7 +251,12 @@ export const startTryoutAttempt = async ({
         ]
       )
 
-    if (activeAttemptResult.rows[0]) {
+    const existingAttempt = activeAttemptResult.rows[0]
+    const activeCheck = existingAttempt
+      ? await client.query('SELECT expires_at > clock_timestamp() AS valid FROM tryout_attempts WHERE id = $1', [existingAttempt.id])
+      : null
+
+    if (activeCheck?.rows[0]?.valid) {
       await client.query('COMMIT')
 
       return {
@@ -274,41 +267,43 @@ export const startTryoutAttempt = async ({
       }
     }
 
-    if (!packageData.is_accessible) {
-      throw new AppError(
-        'You do not have access to this tryout',
-        403,
-        'TRYOUT_ACCESS_DENIED'
-      )
-    }
-
-    const scheduleResult = await client.query(
-      `
-        SELECT
-          start_at > CURRENT_TIMESTAMP AS not_started,
-          end_at < CURRENT_TIMESTAMP AS ended
-        FROM tryout_packages
-        WHERE id = $1
-      `,
+    // Lock paket secara terpisah agar evaluasi waktu tidak mendahului lock wait.
+    const lockedPackage = await client.query(
+      'SELECT id FROM tryout_packages WHERE id = $1 FOR SHARE',
       [tryoutPackageId]
     )
-
-    const schedule = scheduleResult.rows[0]
-
-    if (schedule.not_started) {
-      throw new AppError(
-        'Tryout belum dimulai sesuai jadwal.',
-        409,
-        'TRYOUT_NOT_STARTED'
-      )
+    if (!lockedPackage.rowCount) {
+      throw new AppError('Tryout not found', 404, 'TRYOUT_NOT_FOUND')
     }
 
-    if (schedule.ended) {
-      throw new AppError(
-        'Periode memulai tryout telah berakhir.',
-        409,
-        'TRYOUT_SCHEDULE_ENDED'
-      )
+    // Pemeriksaan awal sebelum memuat snapshot; bukan keputusan final start.
+    const preliminary = await findAvailableTryoutByIdForUser(
+      userId, tryoutPackageId, { client, ignoreSchedule: true }
+    )
+    if (!preliminary) {
+      throw new AppError('Tryout not found', 404, 'TRYOUT_NOT_FOUND')
+    }
+    if (!preliminary.is_accessible) {
+      throw new AppError('You do not have access to this tryout', 403, 'TRYOUT_ACCESS_DENIED')
+    }
+
+    const examSnapshot = await getExamSnapshotData(client, tryoutPackageId)
+    const { rows: clockRows } = await client.query('SELECT clock_timestamp()::text AS evaluated_at')
+    const evaluatedAt = clockRows[0].evaluated_at
+    const packageData = await findAvailableTryoutByIdForUser(
+      userId, tryoutPackageId, { client, ignoreSchedule: true, evaluatedAt }
+    )
+    if (!packageData) {
+      throw new AppError('Tryout not found', 404, 'TRYOUT_NOT_FOUND')
+    }
+    if (!packageData.is_accessible) {
+      throw new AppError('You do not have access to this tryout', 403, 'TRYOUT_ACCESS_DENIED')
+    }
+    if (packageData.schedule_status === 'upcoming') {
+      throw new AppError('Tryout belum dimulai sesuai jadwal.', 409, 'TRYOUT_NOT_STARTED')
+    }
+    if (packageData.schedule_status === 'ended') {
+      throw new AppError('Periode memulai tryout telah berakhir.', 409, 'TRYOUT_SCHEDULE_ENDED')
     }
 
     const durationMinutes = Number(packageData.duration_minutes)
@@ -336,11 +331,12 @@ export const startTryoutAttempt = async ({
         WHERE user_id = $1
           AND tryout_package_id = $2
           AND status = 'in_progress'
-          AND expires_at <= CURRENT_TIMESTAMP
+          AND expires_at <= $3::timestamptz
       `,
       [
         userId,
         tryoutPackageId,
+        evaluatedAt,
       ]
     )
 
@@ -372,11 +368,6 @@ export const startTryoutAttempt = async ({
         .next_attempt_number
     )
 
-    const examSnapshot = await getExamSnapshotData(
-      client,
-      tryoutPackageId
-    )
-
     /*
      * Buat attempt baru.
      *
@@ -400,8 +391,8 @@ export const startTryoutAttempt = async ({
           $2,
           $3,
           'in_progress',
-          CURRENT_TIMESTAMP,
-          CURRENT_TIMESTAMP
+          $6::timestamptz,
+          $6::timestamptz
             + ($4 * INTERVAL '1 minute'),
           $5::jsonb
         )
@@ -427,6 +418,7 @@ export const startTryoutAttempt = async ({
         attemptNumber,
         durationMinutes,
         JSON.stringify(examSnapshot),
+        evaluatedAt,
       ]
     )
 

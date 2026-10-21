@@ -4,13 +4,15 @@ import {
   Clock3,
   Lock,
 } from 'lucide-react'
+import { hasActiveTryoutAttempt, getTryoutScheduleStatus } from '../../utils/tryout-availability'
 
-function TryoutCard({ tryout, onDetail, onSubscribe }) {
+function TryoutCard({ tryout, onDetail, onSubscribe, onResume }) {
+  const canResume = hasActiveTryoutAttempt(tryout)
   const scheduleLabel = {
     upcoming: 'Belum dimulai',
     active: 'Periode aktif',
     ended: 'Periode mulai berakhir',
-  }[tryout.scheduleStatus] || 'Jadwal belum tersedia'
+  }[getTryoutScheduleStatus(tryout)] || 'Jadwal belum tersedia'
 
   return (
     <article className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-primary-200 hover:shadow-sm">
@@ -75,7 +77,15 @@ function TryoutCard({ tryout, onDetail, onSubscribe }) {
       </div>
 
       {/* Action */}
-      {tryout.isAccessible ? (
+      {canResume ? (
+        <button
+          type="button"
+          onClick={() => onResume(tryout)}
+          className="mt-5 w-full rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700"
+        >
+          Lanjutkan Tryout
+        </button>
+      ) : tryout.isAccessible ? (
         <button
           type="button"
           onClick={() => onDetail(tryout)}

@@ -22,8 +22,8 @@ export const useAttemptAnalysis = (
       String(attemptId),
     ],
 
-    queryFn: () =>
-      getAttemptAnalysis(attemptId),
+    queryFn: ({ signal }) =>
+      getAttemptAnalysis(attemptId, { signal }),
 
     enabled: Boolean(userId) && Boolean(attemptId),
 

@@ -1,3 +1,4 @@
+import { useAuthStore } from '../../stores/authStore'
 import { useQuery } from '@tanstack/react-query'
 
 import {
@@ -5,16 +6,18 @@ import {
 } from '../services/cat.service'
 
 export const useAttemptQuestions = (attemptId) => {
+    const userId = useAuthStore((state) => state.user?.id)
     return useQuery({
         queryKey: [
             'attempt-questions',
+            userId,
             String(attemptId),
         ],
 
-        queryFn: () =>
-            getAttemptQuestions(attemptId),
+        queryFn: ({ signal }) =>
+            getAttemptQuestions(attemptId, { signal }),
 
-        enabled: Boolean(attemptId),
+        enabled: Boolean(userId && attemptId),
 
         retry: false,
 

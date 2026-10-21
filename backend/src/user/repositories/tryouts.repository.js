@@ -20,6 +20,8 @@ export const findAvailableTryoutsForUser = async (
         END AS required_tier,
         tp.start_at,
         tp.end_at,
+        active_attempt.id AS active_attempt_id,
+        active_attempt.expires_at AS active_attempt_expires_at,
 
         CASE
           WHEN tp.start_at > CURRENT_TIMESTAMP THEN 'upcoming'
@@ -53,6 +55,14 @@ export const findAvailableTryoutsForUser = async (
         END AS is_accessible
 
       FROM tryout_packages tp
+
+      LEFT JOIN LATERAL (
+        SELECT ta.id, ta.expires_at
+        FROM tryout_attempts ta
+        WHERE ta.user_id = $1 AND ta.tryout_package_id = tp.id
+          AND ta.status = 'in_progress' AND ta.expires_at > CURRENT_TIMESTAMP
+        ORDER BY ta.attempt_number DESC LIMIT 1
+      ) active_attempt ON true
 
       WHERE tp.status = 'published'
         AND (
@@ -84,6 +94,7 @@ export const findAvailableTryoutByIdForUser = async (
     client = pool,
     ignoreSchedule = false,
     lockPackage = false,
+    evaluatedAt = null,
   } = {}
 ) => {
   const { rows } = await client.query(
@@ -105,8 +116,8 @@ export const findAvailableTryoutByIdForUser = async (
         tp.end_at,
 
         CASE
-          WHEN tp.start_at > CURRENT_TIMESTAMP THEN 'upcoming'
-          WHEN tp.end_at < CURRENT_TIMESTAMP THEN 'ended'
+          WHEN tp.start_at > COALESCE($3::timestamptz, statement_timestamp()) THEN 'upcoming'
+          WHEN tp.end_at < COALESCE($3::timestamptz, statement_timestamp()) THEN 'ended'
           ELSE 'active'
         END AS schedule_status,
 
@@ -127,8 +138,8 @@ export const findAvailableTryoutByIdForUser = async (
               AND st.slug = 'premium'
               AND st.is_active = true
               AND us.status = 'active'
-              AND us.started_at <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
-              AND us.expired_at > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')
+              AND us.started_at <= (COALESCE($3::timestamptz, statement_timestamp()) AT TIME ZONE 'UTC')
+              AND us.expired_at > (COALESCE($3::timestamptz, statement_timestamp()) AT TIME ZONE 'UTC')
               AND tpst.tryout_package_id = tp.id
           ) THEN true
 
@@ -155,18 +166,18 @@ export const findAvailableTryoutByIdForUser = async (
 
         ${ignoreSchedule ? '' : `AND (
           tp.start_at IS NULL
-          OR tp.start_at <= CURRENT_TIMESTAMP
+          OR tp.start_at <= COALESCE($3::timestamptz, statement_timestamp())
         )
 
         AND (
           tp.end_at IS NULL
-          OR tp.end_at >= CURRENT_TIMESTAMP
+          OR tp.end_at >= COALESCE($3::timestamptz, statement_timestamp())
         )`}
 
       LIMIT 1
       ${lockPackage ? 'FOR SHARE OF tp' : ''}
     `,
-    [userId, tryoutId]
+    [userId, tryoutId, evaluatedAt]
   )
 
   return rows[0] || null

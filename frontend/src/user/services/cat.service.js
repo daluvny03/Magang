@@ -1,8 +1,9 @@
 import api from '../../services/api'
 
-export const getAttemptQuestions = async (attemptId) => {
+export const getAttemptQuestions = async (attemptId, { signal } = {}) => {
     const response = await api.get(
-        `/user/attempts/${attemptId}/questions`
+        `/user/attempts/${attemptId}/questions`,
+        { signal }
     )
 
     return response.data

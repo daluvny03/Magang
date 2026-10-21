@@ -75,6 +75,9 @@ function SubscriptionContent({ userId }) {
             queryKey: ['user-subscription-catalog'],
         })
 
+        queryClient.invalidateQueries({ queryKey: ['user-tryouts', userId] })
+        queryClient.invalidateQueries({ queryKey: ['user-tryout-detail', userId] })
+
         if (paymentStorageKey) {
             try {
                 sessionStorage.removeItem(paymentStorageKey)

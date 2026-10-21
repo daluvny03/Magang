@@ -14,6 +14,8 @@ import {
 
 import { useTryoutDetail } from '../hooks/useTryoutDetail'
 import { useStartTryout } from '../hooks/useStartTryout'
+import { hasActiveTryoutAttempt, getTryoutScheduleStatus } from '../utils/tryout-availability'
+import { useAuthStore } from '../../stores/authStore'
 
 const formatScheduleDate = (value, emptyLabel) => {
     if (!value) return emptyLabel
@@ -50,11 +52,23 @@ function TryoutDetailPage() {
     const tryout = tryoutResponse?.data
 
     const handleStartTryout = async () => {
+        // Resume tidak memakai POST start agar attempt yang habis di antara
+        // render dan klik tidak diam-diam diganti dengan attempt baru.
+        if (tryout?.activeAttempt?.id) {
+            if (hasActiveTryoutAttempt(tryout)) {
+                navigate(`/user/cat/${tryout.activeAttempt.id}`)
+            } else {
+                await refetch()
+            }
+            return
+        }
+        const requestingUserId = useAuthStore.getState().user?.id
         try {
             const response =
                 await startTryoutMutation.mutateAsync(
                     tryoutId
                 )
+            if (useAuthStore.getState().user?.id !== requestingUserId) return
 
             const attempt =
                 response?.data?.attempt
@@ -69,6 +83,7 @@ function TryoutDetailPage() {
                 `/user/cat/${attempt.id}`
             )
         } catch (error) {
+            if (useAuthStore.getState().user?.id !== requestingUserId) return
             console.error(
                 'Failed to start tryout:',
                 error
@@ -113,14 +128,15 @@ function TryoutDetailPage() {
     }
 
     if (!tryout) return null
-    const hasActiveAttempt = Boolean(tryout.activeAttempt?.id)
+    const hasActiveAttempt = hasActiveTryoutAttempt(tryout)
+    const scheduleStatus = getTryoutScheduleStatus(tryout)
 
     const canResume = hasActiveAttempt
 
     const canStart =
         !hasActiveAttempt &&
         tryout.isAccessible &&
-        tryout.scheduleStatus === 'active'
+        scheduleStatus === 'active'
 
     const requiresPremium =
         !hasActiveAttempt &&
@@ -133,7 +149,7 @@ function TryoutDetailPage() {
         upcoming: 'Belum dimulai',
         active: 'Periode aktif',
         ended: 'Periode mulai berakhir',
-    }[tryout.scheduleStatus] || 'Jadwal belum tersedia'
+    }[scheduleStatus] || 'Jadwal belum tersedia'
 
     return (
         <div className="mx-auto max-w-5xl space-y-6">
