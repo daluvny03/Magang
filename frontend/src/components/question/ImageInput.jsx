@@ -12,9 +12,12 @@ function useImageSrc(image, file, removed) {
   useEffect(() => {
     if (file) {
       const url = URL.createObjectURL(file)
+      // Blob URLs are allocated and revoked in this effect; publish the allocated URL to the preview.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSrc(url)
       return () => URL.revokeObjectURL(url)
     }
+    // Clear the previous Blob preview when the external file resource changes.
     setSrc(image && !removed ? getImageUrl(image) : null)
   }, [image, file, removed])
 

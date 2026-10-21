@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import App from './App'
+import SessionApp from './SessionApp'
 import './index.css'
 import { useAuthStore } from './stores/authStore'
 
@@ -31,11 +31,6 @@ const unsubscribePrivateCache = useAuthStore.subscribe((state, previous) => {
 
 if (import.meta.hot) {
   import.meta.hot.dispose(unsubscribePrivateCache)
-}
-
-function SessionApp() {
-  const sessionId = useAuthStore((state) => state.sessionId)
-  return <App key={sessionId ?? 'anonymous'} />
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

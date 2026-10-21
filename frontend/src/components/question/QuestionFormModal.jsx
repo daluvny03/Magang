@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
 
@@ -180,7 +180,6 @@ function QuestionFormModal({
     handleSubmit,
     reset,
     setValue,
-    watch,
     trigger,
     getValues,
     formState: { errors },
@@ -189,16 +188,22 @@ function QuestionFormModal({
     defaultValues: createEmptyValues(),
   })
 
-  const answerOptions = watch('answerOptions')
-  const correctAnswer = watch('correctAnswer')
-  const questionImage = watch('questionImage')
-  const questionImageFile = watch('questionImageFile')
-  const removeQuestionImage = watch('removeQuestionImage')
+  const answerOptions = useWatch({ control, name: 'answerOptions' })
+  const correctAnswer = useWatch({ control, name: 'correctAnswer' })
+  const questionImage = useWatch({ control, name: 'questionImage' })
+  const questionImageFile = useWatch({ control, name: 'questionImageFile' })
+  const removeQuestionImage = useWatch({ control, name: 'removeQuestionImage' })
+
+  const [previousFormInputs, setPreviousFormInputs] = useState(null)
+  if (previousFormInputs?.isOpen !== isOpen || previousFormInputs?.isEdit !== isEdit ||
+      previousFormInputs?.value !== question) {
+    setPreviousFormInputs({ isOpen, isEdit, value: question })
+    if (isOpen) setPreviewValues(null)
+  }
 
   useEffect(() => {
     if (!isOpen) return
     reset(isEdit && question ? normalizeQuestionForForm(question) : createEmptyValues())
-    setPreviewValues(null)
   }, [isOpen, isEdit, question, reset])
 
   const set = (name, value, validate = false) =>

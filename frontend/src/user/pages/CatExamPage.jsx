@@ -6,6 +6,7 @@ import {
 
 import {
     useEffect,
+    useMemo,
     useRef,
     useState,
 } from 'react'
@@ -68,6 +69,9 @@ function CatExamPage() {
     const saveProgressMutation =
         useSaveQuestionProgress()
 
+    const saveProgress = saveProgressMutation.mutateAsync
+    const finishAttempt = finishAttemptMutation.mutateAsync
+
     const questionStartedAtRef =
         useRef(null)
 
@@ -81,15 +85,13 @@ function CatExamPage() {
         error,
     } = useAttemptQuestions(attemptId)
 
-    const questions =
-        data?.data?.questions ?? []
+    const questions = useMemo(() => data?.data?.questions ?? [], [data?.data?.questions])
 
     const attempt =
         data?.data?.attempt
 
     const {
         formattedTime,
-        remainingSeconds,
         isExpired,
     } = useAttemptTimer(
         attempt?.expiresAt
@@ -140,6 +142,8 @@ function CatExamPage() {
             )
 
         if (restoredIndex >= 0) {
+            // Restore the saved sessionStorage position once after asynchronous questions load.
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setCurrentQuestionIndex(
                 restoredIndex
             )
@@ -177,7 +181,7 @@ function CatExamPage() {
         const intervalId = setInterval(
             async () => {
                 if (
-                    !currentQuestion ||
+                    !currentQuestionId ||
                     !questionStartedAtRef.current ||
                     progressSavingRef.current ||
                     isExpired
@@ -202,7 +206,7 @@ function CatExamPage() {
 
                 try {
                     if (durationSeconds > 0) {
-                        await saveProgressMutation.mutateAsync({
+                        await saveProgress({
                             attemptId,
                             questionId:
                                 currentQuestionId,
@@ -228,6 +232,8 @@ function CatExamPage() {
     }, [
         attemptId,
         currentQuestionId,
+        isExpired,
+        saveProgress,
     ])
 
     useEffect(() => {
@@ -245,7 +251,7 @@ function CatExamPage() {
         const finishExpiredAttempt =
             async () => {
                 try {
-                    await finishAttemptMutation.mutateAsync({
+                    await finishAttempt({
                         attemptId,
                     })
 
@@ -274,6 +280,8 @@ function CatExamPage() {
         attemptId,
         isExpired,
         navigate,
+        finishAttempt,
+        questionPositionStorageKey,
     ])
 
     if (isLoading) {
@@ -379,7 +387,7 @@ function CatExamPage() {
 
             try {
                 if (durationSeconds > 0) {
-                    await saveProgressMutation.mutateAsync({
+                    await saveProgress({
                         attemptId,
                         questionId:
                             currentQuestion.id,
@@ -586,7 +594,7 @@ function CatExamPage() {
             try {
                 await saveCurrentQuestionProgress()
 
-                await finishAttemptMutation.mutateAsync({
+                await finishAttempt({
                     attemptId,
                 })
 

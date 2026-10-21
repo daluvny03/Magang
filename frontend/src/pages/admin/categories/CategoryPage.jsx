@@ -45,7 +45,7 @@ function CategoryPage() {
 
     const response = categoriesQuery.data
 
-    const categories = response?.data || []
+    const categories = useMemo(() => response?.data || [], [response?.data])
 
     const parentCategories = useMemo(
         () => flattenCategoryTree(categories),

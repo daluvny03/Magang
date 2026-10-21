@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Search } from 'lucide-react'
@@ -124,7 +124,6 @@ function PackageFormModal({
     handleSubmit,
     reset,
     setValue,
-    watch,
     control,
     formState: { errors },
   } = useForm({
@@ -132,13 +131,13 @@ function PackageFormModal({
     defaultValues: emptyValues,
   })
 
-  const name = watch('name') || ''
-  const slug = watch('slug')
-  const status = watch('status')
-  const passingMode = watch('passingMode')
-  const isFree = watch('isFree')
-  const selectedQuestions = watch('questionIds') || []
-  const selectedCategoryIds = watch('categoryIds') || []
+  const name = useWatch({ control, name: 'name' }) || ''
+  const slug = useWatch({ control, name: 'slug' })
+  const status = useWatch({ control, name: 'status' })
+  const passingMode = useWatch({ control, name: 'passingMode' })
+  const isFree = useWatch({ control, name: 'isFree' })
+  const selectedQuestions = useWatch({ control, name: 'questionIds' }) || []
+  const selectedCategoryIds = useWatch({ control, name: 'categoryIds' }) || emptyValues.categoryIds
 
   const questionCategories = useMemo(
     () => filterCategoriesByPackageSelection(categories, selectedCategoryIds),
@@ -154,9 +153,15 @@ function PackageFormModal({
     )
   }, [categories, categorySearch])
 
+  const [previousFormInputs, setPreviousFormInputs] = useState(null)
+  if (previousFormInputs?.isOpen !== isOpen || previousFormInputs?.isEdit !== isEdit ||
+      previousFormInputs?.value !== packageData) {
+    setPreviousFormInputs({ isOpen, isEdit, value: packageData })
+    if (isOpen) setCategorySearch('')
+  }
+
   useEffect(() => {
     if (!isOpen) return
-    setCategorySearch('')
 
     if (isEdit) {
       reset({

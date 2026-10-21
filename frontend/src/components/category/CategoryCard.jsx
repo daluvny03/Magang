@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, FolderTree, Plus } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Badge from '../ui/Badge'
 import IconButton from '../ui/IconButton'
 import CategoryActionMenu from './CategoryActionMenu'
@@ -8,9 +8,11 @@ import CategoryActionMenu from './CategoryActionMenu'
 function useExpanded(search) {
   const [expanded, setExpanded] = useState(Boolean(search?.trim()))
 
-  useEffect(() => {
+  const [previousSearch, setPreviousSearch] = useState(search)
+  if (previousSearch !== search) {
+    setPreviousSearch(search)
     if (search?.trim()) setExpanded(true)
-  }, [search])
+  }
 
   return [expanded, setExpanded]
 }

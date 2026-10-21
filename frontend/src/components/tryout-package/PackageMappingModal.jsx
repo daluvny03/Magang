@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, Search } from 'lucide-react'
 
 import Button from '../ui/Button'
@@ -52,32 +52,36 @@ function PackageMappingModal({
   const [orderedQuestions, setOrderedQuestions] = useState([])
   const [categorySearch, setCategorySearch] = useState('')
 
-  useEffect(() => {
-    if (!isOpen || !packageData) return
+  const [previousInputs, setPreviousInputs] = useState(null)
+  if (previousInputs?.isOpen !== isOpen || previousInputs?.type !== type ||
+      previousInputs?.packageData !== packageData) {
+    setPreviousInputs({ isOpen, type, packageData })
+    if (isOpen && packageData) {
 
-    if (type === 'categories') {
-      setSelectedIds((packageData.categories || []).map((x) => String(x.id)))
+      if (type === 'categories') {
+        setSelectedIds((packageData.categories || []).map((x) => String(x.id)))
+      }
+
+      if (type === 'tiers') {
+        setSelectedIds(
+          (packageData.subscriptionTiers || []).map((x) => String(x.id))
+        )
+      }
+
+      if (type === 'questions') {
+        setOrderedQuestions(
+          (packageData.questions || [])
+            .map((x, index) => ({
+              id: String(x.id),
+              questionOrder: Number(x.questionOrder ?? index + 1),
+            }))
+            .sort((a, b) => a.questionOrder - b.questionOrder)
+        )
+      }
+
+      setCategorySearch('')
     }
-
-    if (type === 'tiers') {
-      setSelectedIds(
-        (packageData.subscriptionTiers || []).map((x) => String(x.id))
-      )
-    }
-
-    if (type === 'questions') {
-      setOrderedQuestions(
-        (packageData.questions || [])
-          .map((x, index) => ({
-            id: String(x.id),
-            questionOrder: Number(x.questionOrder ?? index + 1),
-          }))
-          .sort((a, b) => a.questionOrder - b.questionOrder)
-      )
-    }
-
-    setCategorySearch('')
-  }, [isOpen, type, packageData])
+  }
 
   const filteredCategories = useMemo(() => {
     const keyword = categorySearch.trim().toLowerCase()

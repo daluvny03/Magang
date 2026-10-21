@@ -24,11 +24,11 @@ function CategoryTreeItem({
   const [isActionOpen, setIsActionOpen] = useState(false)
   const menuRef = useRef(null)
 
-  useEffect(() => {
-    if (search?.trim()) {
-      setIsExpanded(true)
-    }
-  }, [search])
+  const [previousSearch, setPreviousSearch] = useState(search)
+  if (previousSearch !== search) {
+    setPreviousSearch(search)
+    if (search?.trim()) setIsExpanded(true)
+  }
 
   // Tutup menu aksi saat klik di luar
   useEffect(() => {

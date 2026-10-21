@@ -86,6 +86,8 @@ function SubscriptionContent({ userId }) {
             }
         }
 
+        // Release local tracking after verified activation and sessionStorage cleanup.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPaymentId(null)
     }, [
         paymentId,
