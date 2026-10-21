@@ -8,6 +8,7 @@ import {
 
 import { validate } from '../middlewares/validation.middleware.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
+import { limitLoginAttempts } from '../middlewares/login-rate-limit.middleware.js';
 
 import {
   registerSchema,
@@ -25,6 +26,7 @@ router.post(
 router.post(
   '/login',
   validate(loginSchema),
+  limitLoginAttempts,
   login
 );
 

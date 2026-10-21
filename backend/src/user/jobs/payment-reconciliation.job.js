@@ -25,9 +25,14 @@ const LOCK_KEY_2 = 2026
 const BATCH_SIZE = 20
 const INTERVAL_MS = 5 * 60 * 1000
 
-const runRecoveryBatch = async () => {
+const runRecoveryBatch = async (isStopping) => {
   const client = await pool.connect()
   let lockAcquired = false
+  let discardClient = true
+  let lockLost = false
+  const shouldStop = () => isStopping() || lockLost
+  const onClientError = () => { lockLost = true }
+  client.on('error', onClientError)
 
   try {
     const lockResult = await client.query(
@@ -40,10 +45,14 @@ const runRecoveryBatch = async () => {
 
     lockAcquired = lockResult.rows[0].acquired
 
-    if (!lockAcquired) return
+    if (!lockAcquired) {
+      discardClient = false
+      return
+    }
 
     const failures = { webhook: 0, payment: 0, scheduling: 0, activation: 0, phase: 0 }
     const runPhase = async (phase, work) => {
+      if (shouldStop()) return
       try {
         await work()
       } catch (error) {
@@ -60,6 +69,7 @@ const runRecoveryBatch = async () => {
       const events = await findRecoverableWebhookEvents(BATCH_SIZE, pool)
 
       for (const event of events) {
+        if (shouldStop()) break
         try {
           await processRecordedDokuEvent(event.id, pool)
         } catch (error) {
@@ -77,6 +87,7 @@ const runRecoveryBatch = async () => {
       const payments = await findPaymentsForReconciliation(BATCH_SIZE, pool)
 
       for (const payment of payments) {
+        if (shouldStop()) break
         try {
           await reconcileDokuPayment(payment.id, { db: pool })
         } catch (error) {
@@ -101,37 +112,48 @@ const runRecoveryBatch = async () => {
 
     // 3. Aktivasi pembayaran yang sudah paid.
     await runPhase('activation', async () => {
-      const results = await recoverUnappliedPremiumPayments(pool)
+      const results = await recoverUnappliedPremiumPayments(pool, { shouldStop })
       failures.activation = results.filter((result) => result.status === 'failed').length
     })
 
     console.info('Payment recovery batch finished:', { failures })
   } finally {
-    if (lockAcquired) {
+    if (lockAcquired && !lockLost) {
       try {
-        await client.query(
-          'SELECT pg_advisory_unlock($1, $2)',
+        const result = await client.query(
+          'SELECT pg_advisory_unlock($1, $2) AS unlocked',
           [LOCK_KEY_1, LOCK_KEY_2]
         )
-      } finally {
-        client.release()
+        discardClient = result.rows[0]?.unlocked !== true
+      } catch {
+        // Timeout/koneksi terputus tidak membuktikan unlock berhasil.
+        discardClient = true
+        console.error('Recovery advisory unlock failed; destroying connection')
       }
-    } else {
-      client.release()
     }
+    client.removeListener('error', onClientError)
+    client.release(discardClient || lockLost)
   }
 }
 
 export const startPaymentReconciliationJob = () => {
+  let stopping = false
+  let activeBatch = null
   const timer = setInterval(() => {
-    runRecoveryBatch().catch((error) => {
-      console.error('Payment recovery job failed:', {
-        code: error.code ?? 'RECOVERY_JOB_FAILED',
+    if (stopping || activeBatch) return
+    activeBatch = runRecoveryBatch(() => stopping)
+      .catch((error) => {
+        console.error('Payment recovery job failed:', {
+          code: error.code ?? 'RECOVERY_JOB_FAILED',
+        })
       })
-    })
+      .finally(() => { activeBatch = null })
   }, INTERVAL_MS)
-
   timer.unref?.()
 
-  return () => clearInterval(timer)
+  return async () => {
+    stopping = true
+    clearInterval(timer)
+    await activeBatch
+  }
 }

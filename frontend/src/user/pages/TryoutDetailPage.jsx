@@ -1,3 +1,4 @@
+import { logRequestError } from '../../utils/log-request-error'
 import {
     ArrowLeft,
     BookOpen,
@@ -84,7 +85,7 @@ function TryoutDetailPage() {
             )
         } catch (error) {
             if (useAuthStore.getState().user?.id !== requestingUserId) return
-            console.error(
+            logRequestError(
                 'Failed to start tryout:',
                 error
             )

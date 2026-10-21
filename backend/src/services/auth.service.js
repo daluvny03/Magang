@@ -42,7 +42,7 @@ export const loginUser = async ({
 }) => {
   const user = await findUserByEmail(email);
 
-  if (!user) {
+  if (!user || user.is_active !== true) {
     throw new AppError(
       'Invalid email or password',
       401,

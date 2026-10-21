@@ -13,7 +13,8 @@ const app = express();
 app.use(
   cors({
     origin: env.frontendUrl,
-    credentials: true
+    credentials: true,
+    exposedHeaders: ['X-Request-Id', 'Retry-After']
   })
 );
 app.use(

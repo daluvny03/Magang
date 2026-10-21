@@ -1,52 +1,32 @@
-export const errorMiddleware = (error, req, res, next) => {
-  console.error(error);
-
-  const statusCode = error.statusCode || 500;
-
-  // Cek apakah array errors ada dan berisi item
-  const errors = (error.errors && error.errors.length > 0)
-    ? error.errors
-    : [{ code: error.code || 'INTERNAL_SERVER_ERROR' }];
-
-  return res.status(statusCode).json({
-    success: false,
-    message: error.message || 'Internal server error',
-    errors
-  });
-};
+import { randomUUID } from 'node:crypto';
 import multer from 'multer';
 
-export const errorHandler = (
-  error,
-  req,
-  res,
-  next
-) => {
-  if (error instanceof multer.MulterError) {
-    return res.status(422).json({
-      success: false,
-      message: 'Excel upload failed',
-      errors: [
-        {
-          field: 'file',
-          message: error.message
-        }
-      ]
-    });
-  }
+export const errorMiddleware = (error, req, res, next) => {
+  if (res.headersSent) return next(error);
+  const requestId = randomUUID();
+  const declaredStatus = error.statusCode ?? error.status;
+  const isClientError = Number.isInteger(declaredStatus) && declaredStatus >= 400 && declaredStatus < 500;
+  const isUploadError = error instanceof multer.MulterError;
+  const statusCode = isUploadError ? 422 : isClientError ? declaredStatus :
+    Number.isInteger(declaredStatus) && declaredStatus >= 500 && declaredStatus <= 599
+      ? declaredStatus : 500;
+  const safeCode = /^[A-Z][A-Z0-9_]{0,79}$/.test(error.code ?? '')
+    ? error.code : 'INTERNAL_SERVER_ERROR';
 
-  if (error.statusCode) {
-    return res.status(error.statusCode).json({
-      success: false,
-      message: error.message,
-      errors: error.errors || []
-    });
-  }
-
-  console.error(error);
-
-  return res.status(500).json({
+  // Tidak mencetak request body, header, query SQL, atau error object mentah.
+  console.error('Request failed', { requestId, statusCode, code: safeCode });
+  res.setHeader('X-Request-Id', requestId);
+  return res.status(statusCode).json({
     success: false,
-    message: 'Internal server error'
+    message: isUploadError ? 'Upload failed' :
+      statusCode >= 500 ? (statusCode === 503 ? 'Service temporarily unavailable' : 'Internal server error') :
+      error.type === 'entity.parse.failed' ? 'Invalid JSON body' :
+      error.message || 'Request failed',
+    errors: statusCode >= 500 ? [{ code: statusCode === 503 ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_SERVER_ERROR' }] :
+      error.type === 'entity.parse.failed' ? [{ code: 'INVALID_JSON' }] :
+      Array.isArray(error.errors) && error.errors.length ? error.errors : [{ code: safeCode }],
+    requestId,
   });
 };
+
+export const errorHandler = errorMiddleware;

@@ -1,7 +1,9 @@
 import { verifyAccessToken } from '../utils/jwt.js';
 import { AppError } from '../utils/app-error.js';
+import { findUserForAuthentication } from '../repositories/user.repository.js';
 
-export const authenticate = (req, res, next) => {
+export const authenticate = async (req, res, next) => {
+  let payload;
   try {
     const authorization = req.headers.authorization;
 
@@ -13,9 +15,9 @@ export const authenticate = (req, res, next) => {
       );
     }
 
-    const [scheme, token] = authorization.split(' ');
+    const [scheme, token, extra] = authorization.split(' ');
 
-    if (scheme !== 'Bearer' || !token) {
+    if (scheme !== 'Bearer' || !token || extra) {
       throw new AppError(
         'Invalid authorization header',
         401,
@@ -23,14 +25,11 @@ export const authenticate = (req, res, next) => {
       );
     }
 
-    const payload = verifyAccessToken(token);
-
-    req.user = {
-      id: payload.sub,
-      role: payload.role
-    };
-
-    next();
+    payload = verifyAccessToken(token);
+    if (!/^[1-9]\d*$/.test(String(payload?.sub ?? '')) ||
+        !['admin', 'user'].includes(payload.role)) {
+      throw new AppError('Invalid token claims', 401, 'INVALID_TOKEN');
+    }
   } catch (error) {
     if (error instanceof AppError) {
       return next(error);
@@ -43,5 +42,16 @@ export const authenticate = (req, res, next) => {
         'INVALID_TOKEN'
       )
     );
+  }
+  try {
+    const user = await findUserForAuthentication(payload.sub);
+    if (!user || user.is_active !== true || user.role !== payload.role) {
+      return next(new AppError('Session is no longer valid', 401, 'SESSION_INVALID'));
+    }
+    req.user = { id: user.id, role: user.role };
+    return next();
+  } catch (error) {
+    // Kegagalan database bukan bukti token invalid; jangan memaksa logout.
+    return next(error);
   }
 };

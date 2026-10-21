@@ -16,15 +16,14 @@ const queryClient = new QueryClient({
 })
 
 // Cleanup data pribadi subscription, Profile, dan CAT saat identitas berubah.
-// Struktur token dan perilaku login tetap ditangani Auth Store existing.
+// Pergantian session juga mencakup login ulang akun yang sama.
 const unsubscribePrivateCache = useAuthStore.subscribe((state, previous) => {
-  if (state.user?.id === previous.user?.id) return
+  if (state.sessionId === previous.sessionId) return
 
   const filters = {
     predicate: (query) =>
       ['user-subscription', 'user-payment', 'user-profile', 'user-tryouts',
-        'user-tryout-detail', 'attempt-questions', 'user-attempt-result', 'user'].includes(query.queryKey[0]) &&
-      query.queryKey[1] !== state.user?.id,
+        'user-tryout-detail', 'attempt-questions', 'user-attempt-result', 'user'].includes(query.queryKey[0]),
   }
   void queryClient.cancelQueries(filters)
   queryClient.removeQueries(filters)
@@ -34,10 +33,15 @@ if (import.meta.hot) {
   import.meta.hot.dispose(unsubscribePrivateCache)
 }
 
+function SessionApp() {
+  const sessionId = useAuthStore((state) => state.sessionId)
+  return <App key={sessionId ?? 'anonymous'} />
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <SessionApp />
     </QueryClientProvider>
   </React.StrictMode>,
 )

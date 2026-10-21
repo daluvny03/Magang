@@ -9,6 +9,7 @@ export const findUserByEmail = async (email) => {
       email,
       password,
       role,
+      is_active,
       created_at,
       updated_at
     FROM users
@@ -23,6 +24,14 @@ export const findUserByEmail = async (email) => {
   }
 
   return rows[0];
+};
+
+export const findUserForAuthentication = async (id) => {
+  const { rows } = await pool.query(
+    'SELECT id, role, is_active FROM users WHERE id = $1 LIMIT 1',
+    [id]
+  );
+  return rows[0] ?? null;
 };
 
 export const findUserById = async (id) => {

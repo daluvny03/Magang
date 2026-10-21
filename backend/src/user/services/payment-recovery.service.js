@@ -55,12 +55,13 @@ export const getPaymentRecoveryCandidates = async (db = recoveryPool) => {
   }
 }
 
-export const recoverUnappliedPremiumPayments = async (db = recoveryPool) => {
+export const recoverUnappliedPremiumPayments = async (db = recoveryPool, { shouldStop = () => false } = {}) => {
   const payments = await findUnappliedPaidPayments(20, db)
 
   const results = []
 
   for (const payment of payments) {
+    if (shouldStop()) break
     try {
       const result = await applyVerifiedPremiumPayment(
         payment.id,

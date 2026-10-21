@@ -1,4 +1,5 @@
 import api from './api'
+import { useAuthStore } from '../stores/authStore'
 
 export const login = async (credentials) => {
   const response = await api.post('/auth/login', credentials)
@@ -7,6 +8,5 @@ export const login = async (credentials) => {
 }
 
 export const logout = () => {
-  localStorage.removeItem('accessToken')
-  localStorage.removeItem('user')
+  useAuthStore.getState().logout()
 }

@@ -9,11 +9,12 @@ export const generateAccessToken = (user) => {
     },
     env.jwt.accessSecret,
     {
-      expiresIn: env.jwt.accessExpiresIn
+      expiresIn: env.jwt.accessExpiresIn,
+      algorithm: 'HS256'
     }
   );
 };
 
 export const verifyAccessToken = (token) => {
-  return jwt.verify(token, env.jwt.accessSecret);
+  return jwt.verify(token, env.jwt.accessSecret, { algorithms: ['HS256'] });
 };

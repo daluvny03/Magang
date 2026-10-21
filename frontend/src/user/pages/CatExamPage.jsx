@@ -1,3 +1,4 @@
+import { logRequestError } from '../../utils/log-request-error'
 import {
     useNavigate,
     useParams,
@@ -209,7 +210,7 @@ function CatExamPage() {
                         })
                     }
                 } catch (error) {
-                    console.error(
+                    logRequestError(
                         'Failed to checkpoint question progress:',
                         error
                     )
@@ -257,7 +258,7 @@ function CatExamPage() {
                     })
 
                 } catch (error) {
-                    console.error(
+                    logRequestError(
                         'Failed to auto-finish attempt:',
                         error
                     )
@@ -386,7 +387,7 @@ function CatExamPage() {
                     })
                 }
             } catch (error) {
-                console.error(
+                logRequestError(
                     'Failed to save question progress:',
                     error
                 )
@@ -451,7 +452,7 @@ function CatExamPage() {
                 selectedAnswer: answerKey,
             })
         } catch (error) {
-            console.error(
+            logRequestError(
                 'Failed to save answer:',
                 error
             )
@@ -539,7 +540,7 @@ function CatExamPage() {
                     })
                 )
 
-                console.error(
+                logRequestError(
                     'Failed to update doubtful status:',
                     error
                 )
@@ -600,7 +601,7 @@ function CatExamPage() {
                 })
 
             } catch (error) {
-                console.error(
+                logRequestError(
                     'Failed to finish attempt:',
                     error
                 )
