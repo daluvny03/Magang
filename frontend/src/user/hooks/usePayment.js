@@ -3,6 +3,7 @@ import {
   useMutation,
   useQuery,
 } from '@tanstack/react-query'
+import { useAuthStore } from '../../stores/authStore'
 
 import {
   createPremiumCheckout,
@@ -16,10 +17,11 @@ export const useCreatePremiumCheckout = () => {
 }
 
 export const usePaymentDetail = (paymentId) => {
+  const userId = useAuthStore((state) => state.user?.id)
   return useQuery({
-    queryKey: ['user-payment', paymentId],
-    queryFn: () => getPaymentDetail(paymentId),
-    enabled: Boolean(paymentId),
+    queryKey: ['user-payment', userId, paymentId],
+    queryFn: ({ signal }) => getPaymentDetail(paymentId, { signal }),
+    enabled: Boolean(userId && paymentId),
     refetchOnWindowFocus: true,
 
     refetchInterval: (query) => {
@@ -32,6 +34,8 @@ export const usePaymentDetail = (paymentId) => {
       if (payment.appliedAt) return false
 
       if (
+        payment.status === 'initiating' ||
+        payment.status === 'reconciling' ||
         payment.status === 'pending' ||
         payment.status === 'paid'
       ) {

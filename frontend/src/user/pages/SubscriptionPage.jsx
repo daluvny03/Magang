@@ -4,7 +4,7 @@ import {
     useSubscription,
     useSubscriptionCatalog,
 } from '../hooks/useSubscription'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
     useCreatePremiumCheckout,
     usePaymentDetail,
@@ -12,6 +12,7 @@ import {
 import { openDokuCheckout } from '../utils/doku-checkout'
 import { useAuthStore } from '../../stores/authStore'
 import { useQueryClient } from '@tanstack/react-query'
+import { formatSubscriptionDate as formatDate } from '../utils/subscription-date'
 
 const PAYMENT_STATUS_LABELS = {
     initiating: 'Menyiapkan pembayaran',
@@ -23,43 +24,40 @@ const PAYMENT_STATUS_LABELS = {
     cancelled: 'Pembayaran dibatalkan',
 }
 
-const formatDate = (value) => {
-    if (!value) return '-'
-
-    return new Intl.DateTimeFormat('id-ID', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        timeZone: 'Asia/Jakarta',
-    }).format(new Date(value))
+const readPaymentId = (key) => {
+    if (!key) return null
+    try {
+        const value = sessionStorage.getItem(key)
+        return /^[1-9]\d*$/.test(value ?? '') ? value : null
+    } catch {
+        return null
+    }
 }
 
 function SubscriptionPage() {
-    const checkoutMutation = useCreatePremiumCheckout()
-    const paymentQuery = usePaymentDetail(paymentId)
-    const [checkoutError, setCheckoutError] = useState(null)
-
     const userId = useAuthStore((state) => state.user?.id)
+    return <SubscriptionContent key={userId ?? 'anonymous'} userId={userId} />
+}
+
+function SubscriptionContent({ userId }) {
+    const checkoutMutation = useCreatePremiumCheckout()
+    const [checkoutError, setCheckoutError] = useState(null)
+    const [storageWarning, setStorageWarning] = useState(null)
+    const mounted = useRef(false)
+    const checkoutInFlight = useRef(false)
+    const [isOpeningCheckout, setIsOpeningCheckout] = useState(false)
 
     const paymentStorageKey = userId
         ? `cpns:checkout:${userId}`
         : null
 
-    const [paymentId, setPaymentId] = useState(() => {
-        const storedUserId = useAuthStore.getState().user?.id
-
-        return storedUserId
-            ? sessionStorage.getItem(`cpns:checkout:${storedUserId}`)
-            : null
-    })
+    const [paymentId, setPaymentId] = useState(() => readPaymentId(paymentStorageKey))
+    const paymentQuery = usePaymentDetail(paymentId)
 
     useEffect(() => {
-        setPaymentId(
-            paymentStorageKey
-                ? sessionStorage.getItem(paymentStorageKey)
-                : null
-        )
-    }, [paymentStorageKey])
+        mounted.current = true
+        return () => { mounted.current = false }
+    }, [])
 
 
     const queryClient = useQueryClient()
@@ -70,7 +68,7 @@ function SubscriptionPage() {
         if (!paymentId || !payment?.appliedAt) return
 
         queryClient.invalidateQueries({
-            queryKey: ['user-subscription'],
+            queryKey: ['user-subscription', userId],
         })
 
         queryClient.invalidateQueries({
@@ -78,7 +76,11 @@ function SubscriptionPage() {
         })
 
         if (paymentStorageKey) {
-            sessionStorage.removeItem(paymentStorageKey)
+            try {
+                sessionStorage.removeItem(paymentStorageKey)
+            } catch {
+                // Aktivasi tetap sah walaupun penyimpanan browser tidak tersedia.
+            }
         }
 
         setPaymentId(null)
@@ -86,22 +88,35 @@ function SubscriptionPage() {
         paymentId,
         payment?.appliedAt,
         paymentStorageKey,
+        userId,
         queryClient,
     ])
 
     const handleCheckout = async () => {
+        if (!userId || checkoutInFlight.current) return
+        checkoutInFlight.current = true
+        setIsOpeningCheckout(true)
         setCheckoutError(null)
+        setStorageWarning(null)
 
         try {
             const response = await checkoutMutation.mutateAsync()
+            if (!mounted.current || useAuthStore.getState().user?.id !== userId) return
 
             const payment = response?.data
 
-            if (!payment?.id) {
+            if (!/^[1-9]\d*$/.test(String(payment?.id ?? ''))) {
                 throw new Error('Payment response is invalid')
             }
 
-            setPaymentId(payment.id)
+            setPaymentId(String(payment.id))
+            try {
+                sessionStorage.setItem(paymentStorageKey, String(payment.id))
+            } catch {
+                setStorageWarning(
+                    'Transaksi tercatat, tetapi browser tidak dapat menyimpan ID pembayaran. Tetap buka halaman ini untuk memantau status.'
+                )
+            }
 
             if (payment.status === 'paid' || payment.appliedAt) {
                 setCheckoutError(
@@ -117,21 +132,18 @@ function SubscriptionPage() {
                 return
             }
 
-            await openDokuCheckout(payment.paymentUrl)
-
-            setPaymentId(payment.id)
-
-            if (paymentStorageKey) {
-                sessionStorage.setItem(
-                    paymentStorageKey,
-                    String(payment.id)
-                )
-            }
+            await openDokuCheckout(payment.paymentUrl, () =>
+                mounted.current && useAuthStore.getState().user?.id === userId
+            )
         } catch (error) {
+            if (!mounted.current || useAuthStore.getState().user?.id !== userId) return
             setCheckoutError(
                 error?.response?.data?.message ||
                 'Tidak dapat membuka halaman pembayaran. Silakan coba kembali.'
             )
+        } finally {
+            checkoutInFlight.current = false
+            if (mounted.current) setIsOpeningCheckout(false)
         }
     }
 
@@ -222,11 +234,17 @@ function SubscriptionPage() {
                             }
 
                             onCheckout={tier.slug === 'premium' ? handleCheckout : undefined}
-                            isCheckoutLoading={checkoutMutation.isPending}
+                            isCheckoutLoading={checkoutMutation.isPending || isOpeningCheckout}
 
                         />
                     ))}
                 </div>
+            )}
+
+            {storageWarning && (
+                <p role="alert" className="mt-6 text-sm text-amber-800">
+                    {storageWarning}
+                </p>
             )}
 
             {checkoutError && (

@@ -2,18 +2,9 @@ import {
   CalendarDays,
   Crown,
   RefreshCw,
-  TrendingUp,
 } from 'lucide-react'
-
-function formatDate(date) {
-  if (!date) return '-'
-
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(date))
-}
+import { Link } from 'react-router-dom'
+import { formatSubscriptionDate as formatDate } from '../../utils/subscription-date'
 
 function SubscriptionCard({ subscription }) {
   if (!subscription) return null
@@ -85,27 +76,17 @@ function SubscriptionCard({ subscription }) {
       </div>
 
       <div className="mt-6 flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row">
-        <button
-          type="button"
-          disabled
-          className="flex flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-400"
+        <Link
+          to="/user/subscription"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-primary-600 hover:bg-primary-50"
         >
           <RefreshCw size={16} />
-          Perpanjang Paket
-        </button>
-
-        <button
-          type="button"
-          disabled
-          className="flex flex-1 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-400"
-        >
-          <TrendingUp size={16} />
-          Upgrade Paket
-        </button>
+          {tier?.slug === 'premium' ? 'Perpanjang Premium' : 'Lihat Paket'}
+        </Link>
       </div>
 
       <p className="mt-3 text-center text-xs text-gray-400">
-        Fitur pembayaran akan tersedia pada tahap berikutnya.
+        Kelola pembelian dan perpanjangan melalui halaman langganan.
       </p>
     </section>
   )

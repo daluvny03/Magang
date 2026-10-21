@@ -2,6 +2,7 @@ import {
   Crown,
   TrendingUp,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 function SubscriptionEmptyState() {
   return (
@@ -19,17 +20,16 @@ function SubscriptionEmptyState() {
           Saat ini tidak ada paket langganan aktif pada akunmu.
         </p>
 
-        <button
-          type="button"
-          disabled
-          className="mt-5 inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-semibold text-gray-400"
+        <Link
+          to="/user/subscription"
+          className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-primary-50 px-4 py-2.5 text-sm font-semibold text-primary-600 hover:bg-primary-100"
         >
           <TrendingUp size={16} />
           Lihat Paket
-        </button>
+        </Link>
 
         <p className="mt-3 text-xs text-gray-400">
-          Fitur pembelian paket akan tersedia pada tahap berikutnya.
+          Paket Free tetap tersedia. Lihat paket untuk membeli Premium.
         </p>
       </div>
     </section>

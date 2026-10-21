@@ -54,7 +54,7 @@ export const loadDokuScript = () => {
   return scriptPromise
 }
 
-export const openDokuCheckout = async (paymentUrl) => {
+export const openDokuCheckout = async (paymentUrl, canOpen = () => true) => {
   const environment = getDokuEnvironment()
 
   const url = new URL(paymentUrl)
@@ -73,5 +73,6 @@ export const openDokuCheckout = async (paymentUrl) => {
 
   await loadDokuScript()
 
+  if (!canOpen()) return
   window.loadJokulCheckout(url.toString())
 }

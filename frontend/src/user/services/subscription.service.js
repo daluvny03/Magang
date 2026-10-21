@@ -7,8 +7,8 @@ export const getSubscriptionCatalog = async () => {
   return response.data
 }
 
-export const getActiveSubscription = async () => {
-  const response = await api.get('/user/subscription')
+export const getActiveSubscription = async ({ signal } = {}) => {
+  const response = await api.get('/user/subscription', { signal })
 
   return response.data
 }
