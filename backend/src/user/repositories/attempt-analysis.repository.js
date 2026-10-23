@@ -1,3 +1,5 @@
+// CAT timestamps follow the PostgreSQL session timezone used by existing writes.
+// Return timestamptz so pg does not reinterpret them using the Node process timezone.
 import { pool } from '../../config/database.js'
 
 export const findAttemptForAnalysis = async ({
@@ -12,8 +14,8 @@ export const findAttemptForAnalysis = async ({
         ta.tryout_package_id,
         tp.name AS tryout_name,
         ta.status,
-        ta.started_at,
-        ta.completed_at,
+        ta.started_at::timestamptz AS started_at,
+        ta.completed_at::timestamptz AS completed_at,
         ta.total_score,
         ta.correct_answers,
         ta.wrong_answers,

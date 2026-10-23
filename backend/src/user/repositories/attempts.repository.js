@@ -1,3 +1,5 @@
+// CAT timestamps follow the PostgreSQL session timezone used by existing writes.
+// Return timestamptz so pg does not reinterpret them using the Node process timezone.
 import { pool } from '../../config/database.js'
 import { getPackageQuestionScoreLimits } from '../../repositories/passing-rules.repository.js'
 import { AppError } from '../../utils/app-error.js'
@@ -224,15 +226,15 @@ export const startTryoutAttempt = async ({
             tryout_package_id,
             attempt_number,
             status,
-            started_at,
-            completed_at,
-            expires_at,
+            started_at::timestamptz AS started_at,
+            completed_at::timestamptz AS completed_at,
+            expires_at::timestamptz AS expires_at,
             total_score,
             correct_answers,
             wrong_answers,
             unanswered,
-            created_at,
-            updated_at
+            created_at::timestamptz AS created_at,
+            updated_at::timestamptz AS updated_at
 
           FROM tryout_attempts
 
@@ -402,15 +404,15 @@ export const startTryoutAttempt = async ({
           tryout_package_id,
           attempt_number,
           status,
-          started_at,
-          completed_at,
-          expires_at,
+          started_at::timestamptz AS started_at,
+          completed_at::timestamptz AS completed_at,
+          expires_at::timestamptz AS expires_at,
           total_score,
           correct_answers,
           wrong_answers,
           unanswered,
-          created_at,
-          updated_at
+          created_at::timestamptz AS created_at,
+          updated_at::timestamptz AS updated_at
       `,
       [
         userId,
@@ -451,15 +453,15 @@ export const findActiveTryoutAttempt = async ({
         tryout_package_id,
         attempt_number,
         status,
-        started_at,
-        completed_at,
-        expires_at,
+        started_at::timestamptz AS started_at,
+        completed_at::timestamptz AS completed_at,
+        expires_at::timestamptz AS expires_at,
         total_score,
         correct_answers,
         wrong_answers,
         unanswered,
-        created_at,
-        updated_at
+        created_at::timestamptz AS created_at,
+        updated_at::timestamptz AS updated_at
 
       FROM tryout_attempts
 

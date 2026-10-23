@@ -1,3 +1,5 @@
+// CAT timestamps follow the PostgreSQL session timezone used by existing writes.
+// Return timestamptz so pg does not reinterpret them using the Node process timezone.
 import { pool } from '../../config/database.js'
 
 const sanitizeAnswerOptions = (options) => {
@@ -37,8 +39,8 @@ export const findQuestionsByAttemptId = async ({
         ta.user_id,
         ta.tryout_package_id,
         ta.status,
-        ta.started_at,
-        ta.expires_at
+        ta.started_at::timestamptz AS started_at,
+        ta.expires_at::timestamptz AS expires_at
 
       FROM tryout_attempts ta
 

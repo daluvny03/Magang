@@ -1,3 +1,5 @@
+// CAT timestamps follow the PostgreSQL session timezone used by existing writes.
+// Return timestamptz so pg does not reinterpret them using the Node process timezone.
 import { pool } from '../../config/database.js';
 
 export const findAvailableTryoutsForUser = async (
@@ -18,10 +20,10 @@ export const findAvailableTryoutsForUser = async (
           WHEN tp.is_free = true THEN NULL
           ELSE 'premium'
         END AS required_tier,
-        tp.start_at,
-        tp.end_at,
+        tp.start_at::timestamptz AS start_at,
+        tp.end_at::timestamptz AS end_at,
         active_attempt.id AS active_attempt_id,
-        active_attempt.expires_at AS active_attempt_expires_at,
+        active_attempt.expires_at::timestamptz AS active_attempt_expires_at,
 
         CASE
           WHEN tp.start_at > CURRENT_TIMESTAMP THEN 'upcoming'
@@ -112,8 +114,8 @@ export const findAvailableTryoutByIdForUser = async (
           WHEN tp.is_free = true THEN NULL
           ELSE 'premium'
         END AS required_tier,
-        tp.start_at,
-        tp.end_at,
+        tp.start_at::timestamptz AS start_at,
+        tp.end_at::timestamptz AS end_at,
 
         CASE
           WHEN tp.start_at > COALESCE($3::timestamptz, statement_timestamp()) THEN 'upcoming'

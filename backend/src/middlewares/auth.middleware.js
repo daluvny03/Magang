@@ -2,6 +2,9 @@ import { verifyAccessToken } from '../utils/jwt.js';
 import { AppError } from '../utils/app-error.js';
 import { findUserForAuthentication } from '../repositories/user.repository.js';
 
+// users.id is PostgreSQL UUID; accept canonical UUIDs without restricting version.
+const USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export const authenticate = async (req, res, next) => {
   let payload;
   try {
@@ -26,7 +29,7 @@ export const authenticate = async (req, res, next) => {
     }
 
     payload = verifyAccessToken(token);
-    if (!/^[1-9]\d*$/.test(String(payload?.sub ?? '')) ||
+    if (typeof payload?.sub !== 'string' || !USER_ID_PATTERN.test(payload.sub) ||
         !['admin', 'user'].includes(payload.role)) {
       throw new AppError('Invalid token claims', 401, 'INVALID_TOKEN');
     }

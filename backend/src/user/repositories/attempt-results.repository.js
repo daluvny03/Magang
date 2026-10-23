@@ -1,3 +1,5 @@
+// CAT timestamps follow the PostgreSQL session timezone used by existing writes.
+// Return timestamptz so pg does not reinterpret them using the Node process timezone.
 import { pool } from '../../config/database.js'
 import {
   evaluatePassingStatus,
@@ -46,9 +48,9 @@ export const finishTryoutAttempt = async ({
             tryout_package_id,
             attempt_number,
             status,
-            started_at,
-            completed_at,
-            expires_at,
+            started_at::timestamptz AS started_at,
+            completed_at::timestamptz AS completed_at,
+            expires_at::timestamptz AS expires_at,
             exam_snapshot,
             result_snapshot
           FROM tryout_attempts
@@ -84,15 +86,15 @@ export const finishTryoutAttempt = async ({
               tryout_package_id,
               attempt_number,
               status,
-              started_at,
-              completed_at,
-              expires_at,
+              started_at::timestamptz AS started_at,
+              completed_at::timestamptz AS completed_at,
+              expires_at::timestamptz AS expires_at,
               total_score,
               correct_answers,
               wrong_answers,
               unanswered,
-              created_at,
-              updated_at
+              created_at::timestamptz AS created_at,
+              updated_at::timestamptz AS updated_at
 
             FROM tryout_attempts
 
@@ -344,15 +346,15 @@ export const finishTryoutAttempt = async ({
             ta.tryout_package_id,
             ta.attempt_number,
             ta.status,
-            ta.started_at,
-            ta.completed_at,
-            ta.expires_at,
+            ta.started_at::timestamptz AS started_at,
+            ta.completed_at::timestamptz AS completed_at,
+            ta.expires_at::timestamptz AS expires_at,
             ta.total_score,
             ta.correct_answers,
             ta.wrong_answers,
             ta.unanswered,
-            ta.created_at,
-            ta.updated_at
+            ta.created_at::timestamptz AS created_at,
+            ta.updated_at::timestamptz AS updated_at
         `,
         [
           attempt.tryout_package_id,
@@ -389,9 +391,9 @@ export const findCompletedAttemptResult = async ({
         ta.tryout_package_id,
         ta.attempt_number,
         ta.status,
-        ta.started_at,
-        ta.completed_at,
-        ta.expires_at,
+        ta.started_at::timestamptz AS started_at,
+        ta.completed_at::timestamptz AS completed_at,
+        ta.expires_at::timestamptz AS expires_at,
         ta.total_score,
         ta.correct_answers,
         ta.wrong_answers,
