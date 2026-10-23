@@ -1,11 +1,14 @@
+
 import { randomUUID } from 'node:crypto'
 import axios from 'axios'
 
 import { createDokuHeaders } from '../utils/doku-headers.js'
 import { validateDokuConfig } from '../utils/doku-config.js'
+import { buildDokuErrorDiagnostic } from '../utils/doku-error-diagnostic.js'
 
 export const checkDokuPaymentStatus = async ({
   invoiceNumber,
+  lookupRequestId = null,
 }) => {
   const doku = validateDokuConfig()
 
@@ -16,17 +19,30 @@ export const checkDokuPaymentStatus = async ({
     throw new Error('Invalid invoice number')
   }
 
-  const requestTarget =
-    `/orders/v1/status/${encodeURIComponent(invoiceNumber)}`
+  if (
+    lookupRequestId !== null &&
+    (
+      typeof lookupRequestId !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(lookupRequestId)
+    )
+  ) {
+    throw new Error('Invalid lookup Request ID')
+  }
 
-  const requestId = randomUUID()
+  const identifier = lookupRequestId ?? invoiceNumber
+
+  const requestTarget =
+    `/orders/v1/status/${encodeURIComponent(identifier)}`
+
+  // ID unik untuk panggilan GET saat ini.
+  // Bukan ID transaksi checkout yang sedang dicari.
+  const inquiryRequestId = randomUUID()
 
   const headers = createDokuHeaders({
     clientId: doku.clientId,
     secretKey: doku.secretKey,
-    requestId,
+    requestId: inquiryRequestId,
     requestTarget,
-    // Tidak ada rawBody untuk GET.
   })
 
   try {
@@ -45,10 +61,13 @@ export const checkDokuPaymentStatus = async ({
       result?.order?.invoice_number !== invoiceNumber ||
       (
         typeof result?.transaction?.status !== 'string' &&
-        !['ORDER_GENERATED', 'ORDER_EXPIRED'].includes(result?.order?.status)
+        !['ORDER_GENERATED', 'ORDER_EXPIRED']
+          .includes(result?.order?.status)
       )
     ) {
-      throw new Error('Invalid DOKU status response')
+      const error = new Error('Invalid DOKU status response')
+      error.code = 'DOKU_INVALID_STATUS_RESPONSE'
+      throw error
     }
 
     return result
@@ -59,7 +78,21 @@ export const checkDokuPaymentStatus = async ({
 
     statusError.code = 'DOKU_STATUS_CHECK_FAILED'
     statusError.httpStatus = error.response?.status
+    statusError.lookupType =
+      lookupRequestId ? 'request_id' : 'invoice'
+
+    statusError.providerDiagnostic = error.response
+      ? buildDokuErrorDiagnostic(
+          error.response.data,
+          [
+            doku.secretKey,
+            doku.clientId,
+            headers.Signature,
+          ]
+        )
+      : undefined
 
     throw statusError
   }
 }
+

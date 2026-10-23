@@ -109,6 +109,12 @@ function SubscriptionContent({ userId }) {
             if (!mounted.current || useAuthStore.getState().user?.id !== userId) return
 
             const payment = response?.data
+            console.log('CHECKOUT FRONTEND RESPONSE:', {
+                paymentId: payment?.id,
+                status: payment?.status,
+                hasPaymentUrl: Boolean(payment?.paymentUrl),
+                httpStatus: response?.status,
+            })
 
             if (!/^[1-9]\d*$/.test(String(payment?.id ?? ''))) {
                 throw new Error('Payment response is invalid')
@@ -312,6 +318,17 @@ function SubscriptionContent({ userId }) {
                                     Aktivasi Premium sedang dikonfirmasi.
                                 </p>
                             )}
+
+                            {paymentQuery.data.data.status === 'reconciling' &&
+                                !paymentQuery.data.data.paymentUrl && (
+                                    <p className="text-amber-700">
+                                        Halaman pembayaran belum tersedia. Tunggu minimal
+                                        satu menit sejak percobaan terakhir, lalu klik
+                                        tombol Beli atau Perpanjang Premium untuk mencoba
+                                        memulihkan transaksi ini. Periksa Status hanya
+                                        memperbarui status yang tercatat.
+                                    </p>
+                                )}
 
                             {paymentQuery.data.data.appliedAt && (
                                 <p className="text-green-700">

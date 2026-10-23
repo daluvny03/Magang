@@ -59,17 +59,23 @@ export const openDokuCheckout = async (paymentUrl, canOpen = () => true) => {
 
   const url = new URL(paymentUrl)
 
-  const allowedHostname =
-    environment === 'sandbox'
-      ? 'sandbox.doku.com'
-      : 'jokul.doku.com'
+  const allowedOrigins =
+  environment === 'sandbox'
+    ? [
+        'https://sandbox.doku.com',
+        'https://staging.doku.com',
+      ]
+    : ['https://jokul.doku.com']
 
-  if (
-    url.protocol !== 'https:' ||
-    url.hostname !== allowedHostname
-  ) {
-    throw new Error('Invalid DOKU payment URL')
-  }
+    if (
+      url.protocol !== 'https:' ||
+      !allowedOrigins.includes(url.origin) ||
+      url.username ||
+      url.password ||
+      url.hash
+    ) {
+      throw new Error('Invalid DOKU payment URL')
+    }
 
   await loadDokuScript()
 

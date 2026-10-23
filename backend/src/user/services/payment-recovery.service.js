@@ -164,9 +164,12 @@ export const reconcileDokuPayment = async (
   let dokuResponse
   let verification
   let inquiryError
+  let checkoutRecovered = false
+  let replayError = null
   try {
     dokuResponse = await checkDokuPaymentStatus({
       invoiceNumber: initialPayment.invoice_number,
+      lookupRequestId: initialPayment.doku_request_id,
     })
     verification = verifyDokuPaymentStatus(initialPayment, dokuResponse)
   } catch (error) {
@@ -184,16 +187,35 @@ export const reconcileDokuPayment = async (
         code: 'CHECKOUT_SNAPSHOT_MISSING',
       })
     } else {
+      let replayStage = 'validate_snapshot'
       try {
-        validateCheckoutSnapshot(initialPayment.checkout_request_body, initialPayment, config)
+        validateCheckoutSnapshot(
+          initialPayment.checkout_request_body,
+          initialPayment,
+          config
+        )
+
+        replayStage = 'claim_recovery'
+
         const claimed = await claimCheckoutRecovery(paymentId, db)
-        if (claimed) {
+
+        if (!claimed) {
+          console.info('DOKU checkout recovery not eligible:', {
+            paymentId,
+            reason: 'CLAIM_NOT_ACQUIRED',
+          })
+        } else {
+          replayStage = 'create_checkout'
+
           const checkout = await createDokuCheckout({
             invoiceNumber: claimed.invoice_number,
             amount: claimed.amount,
             requestId: claimed.doku_request_id,
             snapshot: claimed.checkout_request_body,
           })
+
+          replayStage = 'persist_checkout'
+
           await saveDokuCheckoutResult({
             paymentId,
             paymentUrl: checkout.paymentUrl,
@@ -201,17 +223,45 @@ export const reconcileDokuPayment = async (
           }, db)
         }
       } catch (error) {
-        // Kegagalan replay tidak menghilangkan hasil inquiry.
+        replayError = error
+
         console.error('Checkout replay unresolved:', {
           paymentId,
+          stage: replayStage,
           code: error.code ?? 'CHECKOUT_REPLAY_FAILED',
+          message: error.message,
           httpStatus: error.httpStatus,
+          providerDiagnostic: JSON.stringify(
+            error.providerDiagnostic ?? null,
+            null,
+            2
+          ),
         })
       }
     }
   }
 
-  if (inquiryError) throw inquiryError
+  if (inquiryError) {
+    // Checkout berhasil dipulihkan, tetapi status pembayaran
+    // belum terverifikasi. Jangan aktifkan premium.
+    if (checkoutRecovered) {
+      return {
+        status: 'checkout_recovered',
+        paymentId,
+        paymentVerified: false,
+      }
+    }
+
+    console.error('DOKU recovery unresolved:', {
+      paymentId,
+      inquiryCode: inquiryError.code,
+      inquiryHttpStatus: inquiryError.httpStatus,
+      replayCode: replayError?.code,
+      replayHttpStatus: replayError?.httpStatus,
+    })
+
+    throw inquiryError
+  }
 
   if (!verification.isPaid && !verification.isOrderExpired) {
     return {

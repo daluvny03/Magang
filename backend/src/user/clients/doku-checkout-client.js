@@ -1,5 +1,6 @@
 
 import axios from 'axios'
+import { buildDokuErrorDiagnostic } from '../utils/doku-error-diagnostic.js'
 
 import { createDokuHeaders } from '../utils/doku-headers.js'
 import {
@@ -69,6 +70,16 @@ export const createDokuCheckout = async ({
           (status >= 200 && status < 300) || status === 409,
       }
     )
+    console.info('DOKU CHECKOUT PROVIDER RESPONSE:', {
+      httpStatus: response.status,
+      hasResponse: Boolean(response.data?.response),
+      hasPaymentUrl: Boolean(
+        response.data?.response?.payment?.url
+      ),
+      hasExpiredDate: Boolean(
+        response.data?.response?.payment?.expired_date
+      ),
+    })
 
     const result = response.data?.response
 
@@ -79,13 +90,34 @@ export const createDokuCheckout = async ({
       (result?.order?.currency != null && result.order.currency !== 'IDR') ||
       typeof result?.payment?.url !== 'string'
     ) {
-      throw new Error('Invalid DOKU checkout response')
+      const responseError = new Error(
+        response.status === 409
+          ? 'DOKU checkout replay returned an unusable response'
+          : 'Invalid DOKU checkout response'
+      );
+
+      responseError.code =
+        response.status === 409
+          ? 'DOKU_CHECKOUT_REPLAY_CONFLICT'
+          : 'DOKU_CHECKOUT_INVALID_RESPONSE';
+
+      responseError.httpStatus = response.status;
+      responseError.providerDiagnostic = buildDokuErrorDiagnostic(
+        response.data,
+        [doku.secretKey, doku.clientId, headers.Signature]
+      );
+
+      throw responseError;
     }
 
     const paymentUrl = validateDokuPaymentUrl(
       result.payment.url,
       doku.checkoutOrigin
     )
+    console.info('DOKU CHECKOUT URL VALIDATED:', {
+      invoiceNumber,
+      urlValid: Boolean(paymentUrl),
+    })
 
     return {
       invoiceNumber,
@@ -96,21 +128,44 @@ export const createDokuCheckout = async ({
   } catch (error) {
     if (error.response) {
       const status = error.response.status
+    
+    if (
+      process.env.NODE_ENV === 'development' &&
+      status === 400
+    ) {
+      const message = error.response.data?.message?.[0]
+
+      if (typeof message === 'string') {
+        console.error('DOKU ERROR MESSAGE:', {
+          message: message.slice(0, 300),
+        })
+      }
+    }
 
       const providerError = new Error(
         'DOKU checkout request was rejected'
       )
       providerError.code = 'DOKU_CHECKOUT_HTTP_ERROR'
       providerError.httpStatus = status
+      providerError.providerDiagnostic = buildDokuErrorDiagnostic(
+        error.response.data, [doku.secretKey, doku.clientId, headers.Signature]
+      )
       throw providerError
     }
 
     if (error.code || error.request) {
+      if (!error.request) {
+        throw error;
+      }
+
       const uncertainError = new Error(
         'DOKU checkout outcome is uncertain'
-      )
-      uncertainError.code = 'DOKU_CHECKOUT_UNCERTAIN'
-      throw uncertainError
+      );
+
+      uncertainError.code = 'DOKU_CHECKOUT_UNCERTAIN';
+      uncertainError.originalCode = error.code;
+
+      throw uncertainError;
     }
 
     throw error

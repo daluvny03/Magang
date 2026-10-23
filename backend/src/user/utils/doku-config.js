@@ -3,7 +3,10 @@ import { env } from '../../config/env.js'
 const ORIGINS = {
   sandbox: {
     api: 'https://api-sandbox.doku.com',
-    checkout: 'https://sandbox.doku.com',
+    checkout: [
+      'https://sandbox.doku.com',
+      'https://staging.doku.com',
+    ],
   },
   production: {
     api: 'https://api.doku.com',
@@ -59,15 +62,34 @@ export const validateDokuConfig = ({ checkout = false } = {}) => {
   return { ...config, baseUrl: origins.api, checkoutOrigin: origins.checkout }
 }
 
-export const validateDokuPaymentUrl = (value, checkoutOrigin) => {
-  const url = new URL(value)
+export const validateDokuPaymentUrl = (
+  value,
+  checkoutOrigins
+) => {
+  let url
+
+  try {
+    url = new URL(value)
+  } catch {
+    const error = new Error('Invalid DOKU payment URL')
+    error.code = 'DOKU_PAYMENT_URL_INVALID'
+    throw error
+  }
+
+  const allowedOrigins = Array.isArray(checkoutOrigins)
+    ? checkoutOrigins
+    : [checkoutOrigins]
+
   if (
-    url.origin !== checkoutOrigin ||
+    url.protocol !== 'https:' ||
+    !allowedOrigins.includes(url.origin) ||
     url.username ||
     url.password ||
     url.hash
   ) {
-    throw new Error('Invalid DOKU payment URL')
+    const error = new Error('Invalid DOKU checkout origin')
+    error.code = 'DOKU_PAYMENT_URL_ORIGIN_MISMATCH'
+    throw error
   }
   return url.toString()
 }
