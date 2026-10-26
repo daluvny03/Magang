@@ -108,11 +108,7 @@ function TryoutPackagePage() {
     setSelectedId(null)
   }
 
-  const normalizePayload = (values) => ({
-    name: values.name.trim(),
-    slug: values.slug.trim(),
-    description: values.description?.trim() || '',
-    durationMinutes: Number(values.durationMinutes),
+  const normalizePassingPayload = (values) => ({
     passingMode: values.passingMode,
     ...(values.passingMode === 'total'
       ? { passingScore: Number(values.passingScore) }
@@ -123,6 +119,14 @@ function TryoutPackagePage() {
               .map(([slug, value]) => [slug, Number(value)])
           ) }
         : {}),
+  })
+
+  const normalizePayload = (values) => ({
+    name: values.name.trim(),
+    slug: values.slug.trim(),
+    description: values.description?.trim() || '',
+    durationMinutes: Number(values.durationMinutes),
+    ...normalizePassingPayload(values),
     status: values.status,
     isFree: Boolean(values.isFree),
     startAt: values.startAt ? new Date(values.startAt).toISOString() : null,
@@ -137,8 +141,23 @@ function TryoutPackagePage() {
 
   const handleSubmit = async (values) => {
     const payload = formMode === 'edit'
-      ? { name: values.name.trim() }
+      ? { name: values.name.trim(), ...normalizePassingPayload(values) }
       : normalizePayload(values)
+
+    if (formMode === 'edit') {
+      const currentRules = normalizePassingPayload({
+        passingMode: packageData.passingMode ?? 'none',
+        passingScore: String(packageData.passingScore ?? ''),
+        passingGrades: Object.fromEntries(['twk', 'tiu', 'tkp'].map(
+          (slug) => [slug, String(packageData.passingGrades?.[slug] ?? '')]
+        )),
+      })
+      if (JSON.stringify(currentRules) === JSON.stringify(normalizePassingPayload(values))) {
+        delete payload.passingMode
+        delete payload.passingScore
+        delete payload.passingGrades
+      }
+    }
 
     try {
       if (formMode === 'edit') {

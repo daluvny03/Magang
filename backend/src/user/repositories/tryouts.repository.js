@@ -15,6 +15,8 @@ export const findAvailableTryoutsForUser = async (
         tp.duration_minutes,
         tp.question_count,
         tp.passing_score,
+        tp.passing_mode,
+        tp.passing_grades,
         tp.is_free,
         CASE
           WHEN tp.is_free = true THEN NULL
@@ -109,6 +111,8 @@ export const findAvailableTryoutByIdForUser = async (
         tp.duration_minutes,
         tp.question_count,
         tp.passing_score,
+        tp.passing_mode,
+        tp.passing_grades,
         tp.is_free,
         CASE
           WHEN tp.is_free = true THEN NULL

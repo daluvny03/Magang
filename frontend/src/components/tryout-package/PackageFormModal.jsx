@@ -15,8 +15,7 @@ import Textarea from '../ui/Textarea'
 import QuestionGroupSelector from './QuestionGroupSelector'
 import { filterCategoriesByPackageSelection } from '../../utils/filterCategoriesByPackageSelection'
 
-const schema = z
-  .object({
+const packageFields = z.object({
     name: z.string().trim().min(1, 'Package name is required'),
     slug: z.string().trim().min(1, 'Slug is required'),
     description: z.string().optional(),
@@ -41,7 +40,8 @@ const schema = z
       .array(z.string())
       .min(1, 'Select at least one subscription tier'),
   })
-  .superRefine((data, ctx) => {
+
+const validatePassingFields = (data, ctx) => {
     const validateScore = (value, path) => {
       if (!value.trim() || !Number.isFinite(Number(value)) || Number(value) < 0) {
         ctx.addIssue({
@@ -68,6 +68,10 @@ const schema = z
       grades.forEach(([slug, value]) => validateScore(value, ['passingGrades', slug]))
     }
 
+}
+
+const schema = packageFields.superRefine((data, ctx) => {
+  validatePassingFields(data, ctx)
     if (
       data.startAt &&
       data.endAt &&
@@ -98,11 +102,13 @@ const emptyValues = {
   subscriptionTierIds: [],
 }
 
-const editSchema = z.object({
+const editSchema = packageFields.pick({
+  passingMode: true, passingScore: true, passingGrades: true,
+}).extend({
   name: z.string().trim()
     .min(3, 'Package name must be at least 3 characters')
     .max(200, 'Package name must be at most 200 characters'),
-})
+}).superRefine(validatePassingFields)
 
 function PackageFormModal({
   isOpen,
@@ -165,7 +171,13 @@ function PackageFormModal({
 
     if (isEdit) {
       reset({
+        ...emptyValues,
         name: packageData?.name || '',
+        passingMode: packageData?.passingMode ?? 'none',
+        passingScore: String(packageData?.passingScore ?? ''),
+        passingGrades: Object.fromEntries(['twk', 'tiu', 'tkp'].map(
+          (slug) => [slug, String(packageData?.passingGrades?.[slug] ?? '')]
+        )),
       })
     } else {
       reset(emptyValues)
@@ -186,6 +198,57 @@ function PackageFormModal({
   const tierError =
     errors.subscriptionTierIds?.message || serverErrors.subscriptionTierIds
 
+  const passingFields = (
+    <fieldset disabled={isSubmitting || isReferenceLoading} className="space-y-4 md:col-span-2">
+            <FormField label="Passing Mode" htmlFor="pkg-passing-mode" error={errors.passingMode?.message || serverErrors.passingMode}>
+              <Select id="pkg-passing-mode" {...register('passingMode')}>
+                <option value="none">Tanpa evaluasi kelulusan</option>
+                <option value="total">Berdasarkan skor total</option>
+                <option value="category">Berdasarkan kategori</option>
+              </Select>
+            </FormField>
+
+            {passingMode === 'total' && (
+              <FormField label="Passing Score" htmlFor="pkg-passing" error={errors.passingScore?.message || serverErrors.passingScore}>
+                <Input
+                  id="pkg-passing"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  {...register('passingScore')}
+                  error={errors.passingScore || serverErrors.passingScore}
+                />
+              </FormField>
+            )}
+
+            {passingMode === 'category' && (
+              <div className="space-y-3 md:col-span-2">
+                <p className="text-xs text-gray-500">
+                  Isi batas setiap kategori yang memiliki soal dalam paket. Kosongkan kategori yang tidak memiliki soal. Semua batas harus terpenuhi agar peserta lulus.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {['twk', 'tiu', 'tkp'].map((slug) => (
+                    <FormField key={slug} label={`Passing Grade ${slug.toUpperCase()}`} htmlFor={`pkg-grade-${slug}`} error={errors.passingGrades?.[slug]?.message || serverErrors[`passingGrades.${slug}`]}>
+                      <Input
+                        id={`pkg-grade-${slug}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        {...register(`passingGrades.${slug}`)}
+                        error={errors.passingGrades?.[slug] || serverErrors[`passingGrades.${slug}`]}
+                      />
+                    </FormField>
+                  ))}
+                </div>
+                {(errors.passingGrades?.message || serverErrors.passingGrades) && (
+                  <p className="text-xs text-red-500">{errors.passingGrades?.message || serverErrors.passingGrades}</p>
+                )}
+              </div>
+            )}
+
+    </fieldset>
+  )
+
   if (isEdit) {
     return (
       <Modal
@@ -193,7 +256,7 @@ function PackageFormModal({
         onClose={isSubmitting ? undefined : onClose}
         size="md"
         title="Edit Tryout Package"
-        description="Ubah nama paket. Kelola kategori, soal, dan subscription tier melalui Manage pada detail paket."
+        description="Ubah nama dan aturan kelulusan paket. Kelola soal dan kategori melalui Manage pada detail paket."
         footer={
           <>
             <Button variant="soft" onClick={onClose} disabled={isSubmitting}>
@@ -238,6 +301,13 @@ function PackageFormModal({
               placeholder="Tryout SKD Paket 1"
             />
           </FormField>
+          <SectionCard title="Aturan Kelulusan">
+            <p className="mb-4 text-sm text-gray-500">
+              Aturan kelulusan hanya dapat diubah sebelum paket pernah dikerjakan peserta.
+              Untuk paket yang sudah digunakan, buat paket baru jika aturan perlu diganti.
+            </p>
+            {passingFields}
+          </SectionCard>
         </form>
       </Modal>
     )
@@ -348,51 +418,7 @@ function PackageFormModal({
               />
             </FormField>
 
-            <FormField label="Passing Mode" htmlFor="pkg-passing-mode" error={errors.passingMode?.message || serverErrors.passingMode}>
-              <Select id="pkg-passing-mode" {...register('passingMode')}>
-                <option value="none">Tanpa evaluasi kelulusan</option>
-                <option value="total">Berdasarkan skor total</option>
-                <option value="category">Berdasarkan kategori</option>
-              </Select>
-            </FormField>
-
-            {passingMode === 'total' && (
-              <FormField label="Passing Score" htmlFor="pkg-passing" error={errors.passingScore?.message || serverErrors.passingScore}>
-                <Input
-                  id="pkg-passing"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  {...register('passingScore')}
-                  error={errors.passingScore || serverErrors.passingScore}
-                />
-              </FormField>
-            )}
-
-            {passingMode === 'category' && (
-              <div className="space-y-3 md:col-span-2">
-                <p className="text-xs text-gray-500">
-                  Isi batas setiap kategori yang memiliki soal dalam paket. Kosongkan kategori yang tidak memiliki soal. Semua batas harus terpenuhi agar peserta lulus.
-                </p>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {['twk', 'tiu', 'tkp'].map((slug) => (
-                    <FormField key={slug} label={`Passing Grade ${slug.toUpperCase()}`} htmlFor={`pkg-grade-${slug}`} error={errors.passingGrades?.[slug]?.message || serverErrors[`passingGrades.${slug}`]}>
-                      <Input
-                        id={`pkg-grade-${slug}`}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        {...register(`passingGrades.${slug}`)}
-                        error={errors.passingGrades?.[slug] || serverErrors[`passingGrades.${slug}`]}
-                      />
-                    </FormField>
-                  ))}
-                </div>
-                {(errors.passingGrades?.message || serverErrors.passingGrades) && (
-                  <p className="text-xs text-red-500">{errors.passingGrades?.message || serverErrors.passingGrades}</p>
-                )}
-              </div>
-            )}
+            {passingFields}
 
             <FormField
               label="Status"

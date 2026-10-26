@@ -37,6 +37,7 @@ export const validatePassingRules = ({
   if (passingMode === 'none') {
     return {
       passingMode: 'none',
+      passingScore: null,
       passingGrades: null,
     }
   }
@@ -52,6 +53,7 @@ export const validatePassingRules = ({
 
     return {
       passingMode: 'total',
+      passingScore,
       passingGrades: null,
     }
   }
@@ -98,6 +100,7 @@ export const validatePassingRules = ({
 
   return {
     passingMode: 'category',
+    passingScore: null,
     passingGrades,
   }
 }

@@ -20,6 +20,8 @@ const mapTryout = (row) => ({
   durationMinutes: row.duration_minutes,
   questionCount: row.question_count,
   passingScore: row.passing_score,
+  passingMode: row.passing_mode,
+  passingGrades: row.passing_grades,
   isFree: row.is_free,
   startAt: row.start_at,
   endAt: row.end_at,

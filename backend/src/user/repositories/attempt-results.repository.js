@@ -395,6 +395,8 @@ export const findCompletedAttemptResult = async ({
         ta.completed_at::timestamptz AS completed_at,
         ta.expires_at::timestamptz AS expires_at,
         ta.total_score,
+        ta.result_snapshot,
+        ta.exam_snapshot,
         ta.correct_answers,
         ta.wrong_answers,
         ta.unanswered,
@@ -424,7 +426,6 @@ export const findCompletedAttemptResult = async ({
 
   return result.rows[0] ?? null
 }
-
 
 export const findAttemptCategoryResults = async ({
   attemptId,

@@ -1,3 +1,4 @@
+import TryoutPassingRules from './TryoutPassingRules'
 import {
   BookOpen,
   CheckCircle2,
@@ -65,15 +66,13 @@ function TryoutCard({ tryout, onDetail, onSubscribe, onResume }) {
           </span>
         </div>
 
-        {tryout.passingScore != null && (
-          <div className="flex items-center gap-1.5 text-sm text-gray-500">
-            <CheckCircle2 size={16} />
-
-            <span>
-              Passing score {tryout.passingScore}
-            </span>
+        <div className="flex items-start gap-1.5 text-sm text-gray-500">
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-medium">Passing minimal</p>
+            <TryoutPassingRules tryout={tryout} />
           </div>
-        )}
+        </div>
       </div>
 
       {/* Action */}
@@ -100,7 +99,7 @@ function TryoutCard({ tryout, onDetail, onSubscribe, onResume }) {
           className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-semibold text-primary-700 transition hover:bg-primary-100"
         >
           <Lock size={16} />
-          Lihat Premium
+          Buka Akses Tryout
         </button>
       )}
 

@@ -145,6 +145,13 @@ export const getAttemptResultForUser = async ({
       totalScore: Number(
         attempt.total_score
       ),
+      passingStatus:
+        attempt.result_snapshot?.passingStatus ??
+        'not_evaluated',
+      passingMode: attempt.exam_snapshot?.passingMode ?? null,
+      passingScore: attempt.exam_snapshot?.passingMode === 'total'
+        ? attempt.exam_snapshot.passingScore
+        : null,
       totalQuestions,
       answered:
         totalQuestions - unanswered,
@@ -153,6 +160,22 @@ export const getAttemptResultForUser = async ({
       unanswered,
     },
 
-    categories,
+    categories: categories.map((category) => {
+      const savedResult = attempt.result_snapshot?.categoryScores?.find(
+        (item) => item.slug === category.slug
+      )
+      const passingGrade = savedResult?.passingGrade ?? (
+        attempt.exam_snapshot?.passingMode === 'category'
+          ? attempt.exam_snapshot.passingGrades?.[category.slug] ?? null
+          : null
+      )
+      const totalScore = savedResult?.score ?? category.totalScore
+      return {
+        ...category,
+        totalScore,
+        passingGrade,
+        passed: passingGrade == null ? null : Number(totalScore) >= Number(passingGrade),
+      }
+    }),
   }
 }

@@ -8,6 +8,33 @@ import {
     XCircle,
 } from 'lucide-react'
 
+const PASSING_STATUS = {
+    passed: {
+        label: 'Memenuhi Passing Grade',
+        description:
+            'Nilai kamu telah memenuhi ketentuan kelulusan tryout.',
+        className:
+            'bg-green-100 text-green-700',
+        icon: CheckCircle2,
+    },
+    failed: {
+        label: 'Belum Memenuhi Passing Grade',
+        description:
+            'Nilai kamu belum memenuhi ketentuan kelulusan tryout.',
+        className:
+            'bg-red-100 text-red-700',
+        icon: XCircle,
+    },
+    not_evaluated: {
+        label: 'Passing Grade Tidak Diterapkan',
+        description:
+            'Paket tryout ini tidak menggunakan ketentuan passing grade.',
+        className:
+            'bg-gray-100 text-gray-600',
+        icon: FileQuestion,
+    },
+}
+
 const formatDate = (value) => {
     if (!value) return '-'
 
@@ -56,6 +83,30 @@ function StatCard({ icon: Icon, label, value, color }) {
     )
 }
 
+function PassingGradeStatus({ status }) {
+    const config =
+        PASSING_STATUS[status] ??
+        PASSING_STATUS.not_evaluated
+
+    const Icon = config.icon
+
+    return (
+        <div className="mt-4 flex flex-col items-center gap-2">
+            <span
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${config.className}`}
+            >
+                <Icon className="h-4 w-4" />
+
+                {config.label}
+            </span>
+
+            <p className="max-w-md text-center text-xs text-gray-500">
+                {config.description}
+            </p>
+        </div>
+    )
+}
+
 function ResultInformationCard({ attempt, summary }) {
     return (
         <section className="space-y-5">
@@ -91,6 +142,20 @@ function ResultInformationCard({ attempt, summary }) {
                         {summary.totalScore}
                     </p>
                 </div>
+                
+                {summary.passingScore != null && (
+                    <p className="mt-4 text-center text-sm text-gray-600">
+                        Passing minimal total: <strong>{summary.passingScore}</strong>
+                    </p>
+                )}
+                {summary.passingMode === 'category' && (
+                    <p className="mt-4 text-center text-sm text-gray-600">
+                        Kelulusan mensyaratkan semua kategori memenuhi passing minimal di bawah.
+                    </p>
+                )}
+                <PassingGradeStatus
+                    status={summary.passingStatus}
+                />
 
                 <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
                     <StatCard

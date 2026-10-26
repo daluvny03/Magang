@@ -63,6 +63,22 @@ function CategoryResultCard({ category }) {
                 </div>
             </div>
 
+            <div className="mt-4 rounded-xl bg-gray-50 p-3 text-sm">
+                {category.passingGrade != null ? (
+                    <>
+                        <p className="text-gray-600">
+                            Passing minimal: <strong>{category.passingGrade}</strong>
+                            {' · '}Skor kamu: <strong>{category.totalScore}</strong>
+                        </p>
+                        <p className={`mt-2 font-semibold ${category.passed ? 'text-green-700' : 'text-red-700'}`}>
+                            {category.passed ? 'Lulus' : 'Belum Lulus'}
+                        </p>
+                    </>
+                ) : (
+                    <p className="text-gray-500">Passing per kategori tidak diterapkan atau belum tersedia.</p>
+                )}
+            </div>
+
             <div className="mt-6">
                 <div className="flex items-center justify-between text-sm">
                     <span className="font-medium text-gray-700">

@@ -1,3 +1,4 @@
+import TryoutPassingRules from '../components/tryout/TryoutPassingRules'
 import { logRequestError } from '../../utils/log-request-error'
 import {
     ArrowLeft,
@@ -240,7 +241,7 @@ function TryoutDetailPage() {
                         </p>
 
                         <p className="mt-1 text-sm font-semibold text-gray-900">
-                            {tryout.passingScore ?? '-'}
+                            <TryoutPassingRules tryout={tryout} />
                         </p>
                     </div>
                 </div>
@@ -278,9 +279,9 @@ function TryoutDetailPage() {
 
                 {hasActiveAttempt && (
                     <p className="mt-3 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-blue-700">
-                        Kamu memiliki ujian yang masih berjalan hingga{' '}
-                        {formatScheduleDate(tryout.activeAttempt.expiresAt, 'batas waktu ujian')}.
-                        {' '}Melanjutkan ujian tidak mengulang timer.
+                        Kamu memiliki ujian yang masih berlangsung. Segera kembali ke ujian
+                        karena timer tetap berjalan meskipun kamu meninggalkan halaman ujian.
+                        {' '}Batas waktu ujian: {formatScheduleDate(tryout.activeAttempt.expiresAt, 'belum tersedia')}.
                     </p>
                 )}
             </section>
