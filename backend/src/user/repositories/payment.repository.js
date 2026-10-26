@@ -60,6 +60,18 @@ export const findPaymentByIdAndUserId = async (
   return rows[0] || null;
 };
 
+// Durable polling cooldown shared by all backend instances; no checkout replay.
+export const claimPaymentStatusRefresh = async (paymentId) => {
+  const { rowCount } = await pool.query(`
+    UPDATE payments SET next_reconciliation_at = NOW() + INTERVAL '30 seconds'
+    WHERE id = $1
+      AND (status IN ('initiating', 'pending', 'reconciling')
+           OR (status = 'paid' AND applied_at IS NULL))
+      AND (next_reconciliation_at IS NULL OR next_reconciliation_at <= NOW())
+  `, [paymentId])
+  return rowCount === 1
+}
+
 export const createPayment = async ({
   userId,
   invoiceNumber,
@@ -431,4 +443,63 @@ export const scheduleNextPaymentReconciliation = async (
       code: 'PAYMENT_RECOVERY_ESCALATED',
     })
   }
+}
+
+export const findPaymentHistoryByUserId = async ({
+  userId,
+  limit,
+  offset,
+}) => {
+  const { rows } = await pool.query(
+    `
+      SELECT
+        p.id::text AS "id",
+        p.invoice_number AS "invoiceNumber",
+        st.name AS "tierName",
+        p.amount AS "amount",
+        p.currency AS "currency",
+        p.status AS "status",
+        p.duration_value AS "durationValue",
+        p.duration_unit AS "durationUnit",
+        p.paid_at AS "paidAt",
+        p.applied_at AS "appliedAt",
+        p.expired_at AS "expiredAt",
+        p.created_at AS "createdAt"
+
+      FROM payments p
+
+      LEFT JOIN subscription_tiers st
+        ON st.id = p.subscription_tier_id
+
+      WHERE p.user_id = $1
+
+      ORDER BY
+        p.created_at DESC,
+        p.id DESC
+
+      LIMIT $2
+      OFFSET $3
+    `,
+    [userId, limit, offset]
+  )
+
+  return rows
+}
+
+export const countPaymentHistoryByUserId = async (
+  userId
+) => {
+  const { rows } = await pool.query(
+    `
+      SELECT
+        COUNT(*)::integer AS total
+
+      FROM payments
+
+      WHERE user_id = $1
+    `,
+    [userId]
+  )
+
+  return rows[0]?.total ?? 0
 }

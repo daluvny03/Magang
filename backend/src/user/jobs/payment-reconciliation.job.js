@@ -115,8 +115,6 @@ const runRecoveryBatch = async (isStopping) => {
       const results = await recoverUnappliedPremiumPayments(pool, { shouldStop })
       failures.activation = results.filter((result) => result.status === 'failed').length
     })
-
-    console.info('Payment recovery batch finished:', { failures })
   } finally {
     if (lockAcquired && !lockLost) {
       try {

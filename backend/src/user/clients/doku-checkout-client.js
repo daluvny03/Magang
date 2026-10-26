@@ -70,16 +70,6 @@ export const createDokuCheckout = async ({
           (status >= 200 && status < 300) || status === 409,
       }
     )
-    console.info('DOKU CHECKOUT PROVIDER RESPONSE:', {
-      httpStatus: response.status,
-      hasResponse: Boolean(response.data?.response),
-      hasPaymentUrl: Boolean(
-        response.data?.response?.payment?.url
-      ),
-      hasExpiredDate: Boolean(
-        response.data?.response?.payment?.expired_date
-      ),
-    })
 
     const result = response.data?.response
 
@@ -114,10 +104,6 @@ export const createDokuCheckout = async ({
       result.payment.url,
       doku.checkoutOrigin
     )
-    console.info('DOKU CHECKOUT URL VALIDATED:', {
-      invoiceNumber,
-      urlValid: Boolean(paymentUrl),
-    })
 
     return {
       invoiceNumber,

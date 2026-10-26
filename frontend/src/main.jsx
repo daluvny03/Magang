@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SessionApp from './SessionApp'
 import './index.css'
 import { useAuthStore } from './stores/authStore'
+import { closeDokuCheckout } from './user/utils/doku-checkout'
+import 'katex/dist/katex.min.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,6 +21,7 @@ const queryClient = new QueryClient({
 // Pergantian session juga mencakup login ulang akun yang sama.
 const unsubscribePrivateCache = useAuthStore.subscribe((state, previous) => {
   if (state.sessionId === previous.sessionId) return
+  closeDokuCheckout()
 
   const filters = {
     predicate: (query) =>

@@ -12,3 +12,17 @@ export const getPaymentDetail = async (paymentId, { signal } = {}) => {
 
   return response.data
 }
+
+export const getPaymentHistory = async (
+  { page = 1, limit = 10, signal } = {}
+) => {
+  const response = await api.get(
+    '/user/payments/history',
+    {
+      params: { page, limit },
+      signal,
+    }
+  )
+
+  return response.data.data
+}

@@ -39,7 +39,7 @@ export const usePaymentDetail = (paymentId) => {
         payment.status === 'pending' ||
         payment.status === 'paid'
       ) {
-        return 10000
+        return 3000
       }
 
       return false

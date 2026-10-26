@@ -1,5 +1,6 @@
 
 import SubscriptionCard from '../components/subscription/SubscriptionCard'
+import { useNavigate } from 'react-router-dom'
 import {
     useSubscription,
     useSubscriptionCatalog,
@@ -9,20 +10,10 @@ import {
     useCreatePremiumCheckout,
     usePaymentDetail,
 } from '../hooks/usePayment'
-import { openDokuCheckout } from '../utils/doku-checkout'
+import { openDokuCheckout, closeDokuCheckout } from '../utils/doku-checkout'
 import { useAuthStore } from '../../stores/authStore'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatSubscriptionDate as formatDate } from '../utils/subscription-date'
-
-const PAYMENT_STATUS_LABELS = {
-    initiating: 'Menyiapkan pembayaran',
-    reconciling: 'Memeriksa transaksi',
-    pending: 'Menunggu pembayaran',
-    paid: 'Pembayaran diterima',
-    failed: 'Pembayaran gagal',
-    expired: 'Pembayaran kedaluwarsa',
-    cancelled: 'Pembayaran dibatalkan',
-}
 
 const readPaymentId = (key) => {
     if (!key) return null
@@ -40,6 +31,8 @@ function SubscriptionPage() {
 }
 
 function SubscriptionContent({ userId }) {
+    const navigate = useNavigate()
+    const redirectedPaymentRef = useRef(null)
     const checkoutMutation = useCreatePremiumCheckout()
     const [checkoutError, setCheckoutError] = useState(null)
     const [storageWarning, setStorageWarning] = useState(null)
@@ -56,7 +49,7 @@ function SubscriptionContent({ userId }) {
 
     useEffect(() => {
         mounted.current = true
-        return () => { mounted.current = false }
+        return () => { mounted.current = false; closeDokuCheckout() }
     }, [])
 
 
@@ -65,62 +58,66 @@ function SubscriptionContent({ userId }) {
     const payment = paymentQuery.data?.data
 
     useEffect(() => {
-        if (!paymentId || !payment?.appliedAt) return
+        if (!paymentId || (payment?.status !== 'paid' && !payment?.appliedAt)) return
+        if (redirectedPaymentRef.current === paymentId) return
 
-        queryClient.invalidateQueries({
-            queryKey: ['user-subscription', userId],
-        })
+        // Pastikan respons masih milik sesi user aktif.
+        const auth = useAuthStore.getState()
 
-        queryClient.invalidateQueries({
-            queryKey: ['user-subscription-catalog'],
-        })
+        if (!mounted.current || !userId) return
+        if (String(auth.user?.id) !== String(userId)) return
 
-        queryClient.invalidateQueries({ queryKey: ['user-tryouts', userId] })
-        queryClient.invalidateQueries({ queryKey: ['user-tryout-detail', userId] })
+        redirectedPaymentRef.current = paymentId
 
+        // Bersihkan tracking transaksi pada browser.
         if (paymentStorageKey) {
             try {
                 sessionStorage.removeItem(paymentStorageKey)
             } catch {
-                // Aktivasi tetap sah walaupun penyimpanan browser tidak tersedia.
+                // Gagal membersihkan storage tidak membatalkan pembayaran.
             }
         }
 
-        // Release local tracking after verified activation and sessionStorage cleanup.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setPaymentId(null)
+        // Tutup DOKU modal dan bersihkan listener.
+        closeDokuCheckout()
+
+        // Arahkan user ke halaman konfirmasi.
+        navigate(
+            `/user/payment/success?paymentId=${encodeURIComponent(paymentId)}`,
+            { replace: true }
+        )
     }, [
         paymentId,
+        payment?.status,
         payment?.appliedAt,
         paymentStorageKey,
         userId,
-        queryClient,
+        navigate,
     ])
 
     const handleCheckout = async () => {
         if (!userId || checkoutInFlight.current) return
         checkoutInFlight.current = true
+        closeDokuCheckout()
+        const sessionId = useAuthStore.getState().sessionId
+        const isCurrentSession = () => mounted.current &&
+            useAuthStore.getState().user?.id === userId &&
+            useAuthStore.getState().sessionId === sessionId
         setIsOpeningCheckout(true)
         setCheckoutError(null)
         setStorageWarning(null)
 
         try {
             const response = await checkoutMutation.mutateAsync()
-            if (!mounted.current || useAuthStore.getState().user?.id !== userId) return
+            if (!isCurrentSession()) return
 
             const payment = response?.data
-            console.log('CHECKOUT FRONTEND RESPONSE:', {
-                paymentId: payment?.id,
-                status: payment?.status,
-                hasPaymentUrl: Boolean(payment?.paymentUrl),
-                httpStatus: response?.status,
-            })
-
             if (!/^[1-9]\d*$/.test(String(payment?.id ?? ''))) {
                 throw new Error('Payment response is invalid')
             }
 
             setPaymentId(String(payment.id))
+            queryClient.setQueryData(['user-payment', userId, String(payment.id)], response)
             try {
                 sessionStorage.setItem(paymentStorageKey, String(payment.id))
             } catch {
@@ -143,11 +140,11 @@ function SubscriptionContent({ userId }) {
                 return
             }
 
-            await openDokuCheckout(payment.paymentUrl, () =>
-                mounted.current && useAuthStore.getState().user?.id === userId
-            )
+            await openDokuCheckout(payment.paymentUrl, isCurrentSession, () => {
+                queryClient.invalidateQueries({ queryKey: ['user-payment', userId, String(payment.id)] })
+            })
         } catch (error) {
-            if (!mounted.current || useAuthStore.getState().user?.id !== userId) return
+            if (!isCurrentSession()) return
             setCheckoutError(
                 error?.response?.data?.message ||
                 'Tidak dapat membuka halaman pembayaran. Silakan coba kembali.'
@@ -276,81 +273,7 @@ function SubscriptionContent({ userId }) {
                 </p>
             )}
 
-            {paymentId && (
-                <div className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
-                    <h2 className="font-semibold">
-                        Status Pembayaran
-                    </h2>
 
-                    {paymentQuery.isLoading ? (
-                        <p className="mt-2 text-sm text-gray-500">
-                            Memuat informasi pembayaran...
-                        </p>
-                    ) : paymentQuery.isError ? (
-                        <p className="mt-2 text-sm text-red-600">
-                            Gagal mengambil status pembayaran.
-                        </p>
-                    ) : paymentQuery.data?.data ? (
-                        <div className="mt-3 space-y-2 text-sm">
-                            <p>
-                                Invoice:{' '}
-                                {paymentQuery.data.data.invoiceNumber}
-                            </p>
-
-                            <p>
-                                Status:{' '}
-                                {PAYMENT_STATUS_LABELS[paymentQuery.data.data.status] ??
-                                    'Status tidak diketahui'}
-                            </p>
-
-                            {['initiating', 'pending', 'reconciling'].includes(
-                                paymentQuery.data.data.status
-                            ) && (
-                                    <p className="text-amber-700">
-                                        Transaksi sedang diproses.
-                                        Pembayaran belum dikonfirmasi.
-                                    </p>
-                                )}
-
-                            {paymentQuery.data.data.status === 'paid' && (
-                                <p className="text-blue-700">
-                                    Pembayaran tercatat berhasil.
-                                    Aktivasi Premium sedang dikonfirmasi.
-                                </p>
-                            )}
-
-                            {paymentQuery.data.data.status === 'reconciling' &&
-                                !paymentQuery.data.data.paymentUrl && (
-                                    <p className="text-amber-700">
-                                        Halaman pembayaran belum tersedia. Tunggu minimal
-                                        satu menit sejak percobaan terakhir, lalu klik
-                                        tombol Beli atau Perpanjang Premium untuk mencoba
-                                        memulihkan transaksi ini. Periksa Status hanya
-                                        memperbarui status yang tercatat.
-                                    </p>
-                                )}
-
-                            {paymentQuery.data.data.appliedAt && (
-                                <p className="text-green-700">
-                                    Pembayaran telah diterapkan ke subscription.
-                                </p>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={() => paymentQuery.refetch()}
-                                disabled={paymentQuery.isFetching}
-                                className="mt-3 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                            >
-                                {paymentQuery.isFetching
-                                    ? 'Memeriksa...'
-                                    : 'Periksa Status'}
-                            </button>
-
-                        </div>
-                    ) : null}
-                </div>
-            )}
         </div>
     )
 }

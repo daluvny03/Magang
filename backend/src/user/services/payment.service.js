@@ -5,12 +5,14 @@ import {
   createPayment,
   findPaymentByIdAndUserId,
   saveDokuCheckoutResult,
+  claimPaymentStatusRefresh,
 } from '../repositories/payment.repository.js'
 
 import { createDokuCheckout } from '../clients/doku-checkout-client.js'
 import { parseDokuExpiredDate } from '../utils/doku-date.js'
 import { validateDokuConfig } from '../utils/doku-config.js'
 import { reconcileDokuPayment } from './payment-recovery.service.js'
+import { applyVerifiedPremiumPayment } from './subscription-lifecycle.service.js'
 
 
 const generateInvoiceNumber = () => {
@@ -28,14 +30,14 @@ const mapPayment = (row) => ({
     value: Number(row.duration_value),
     unit: row.duration_unit
   },
-  paymentUrl: row.payment_url,
+  paymentUrl: row.status === 'pending' ? row.payment_url : null,
   expiredAt: row.expired_at,
   paidAt: row.paid_at,
   appliedAt: row.applied_at,
   createdAt: row.created_at
 });
 
-export const createPremiumCheckout = async (userId) => {
+export const createPremiumCheckout = async (userId, replaceExpired = true) => {
   // Kegagalan konfigurasi lokal tidak boleh membuat transaksi reconciling.
   const checkoutConfig = validateDokuConfig({ checkout: true });
   // Identitas dibuat oleh backend, bukan frontend.
@@ -55,10 +57,14 @@ export const createPremiumCheckout = async (userId) => {
     // A user-requested checkout can recover an existing uncertain request even
     // when the background scheduler is disabled. Recovery owns the SQL claim,
     // cooldown, inquiry-first policy and immutable invoice/request/body replay.
-    if (payment.status === 'reconciling' && !payment.payment_url &&
+    if (['pending', 'reconciling'].includes(payment.status) &&
         !payment.paid_at && !payment.applied_at) {
+      let checked = false
       try {
-        await reconcileDokuPayment(payment.id)
+        const result = await reconcileDokuPayment(payment.id, {
+          allowReplay: payment.status === 'reconciling' && !payment.payment_url,
+        })
+        checked = Boolean(result && result.status !== 'skipped')
       } catch (error) {
         console.error('User-requested checkout recovery unresolved:', {
           paymentId: payment.id,
@@ -71,7 +77,14 @@ export const createPremiumCheckout = async (userId) => {
       // Inquiry may have failed before replay successfully recovered the URL.
       // Always return the latest persisted state, never the stale pre-recovery row.
       const latest = await findPaymentByIdAndUserId(payment.id, userId)
-      return { payment: mapPayment(latest), isExisting: true }
+      // Only a provider-verified order expiry releases the open-payment slot.
+      // A second create still uses the repository's per-user lock/unique index.
+      if (latest.status === 'expired' && checked && replaceExpired) {
+        return createPremiumCheckout(userId, false)
+      }
+      const mapped = mapPayment(latest)
+      if (!checked) mapped.paymentUrl = null // Never reopen a stale URL after inquiry failure.
+      return { payment: mapped, isExisting: true }
     }
     return {
       payment: mapPayment(payment),
@@ -95,22 +108,11 @@ export const createPremiumCheckout = async (userId) => {
   let checkoutStage = 'create_checkout'
 
   try {
-    // TAHAP 1: Kirim request checkout ke DOKU
-    console.info('DOKU INIT START:', {
-      paymentId: claimed.id,
-      stage: checkoutStage,
-    })
-
     const dokuResult = await createDokuCheckout({
       invoiceNumber: claimed.invoice_number,
       amount: claimed.amount,
       requestId: claimed.doku_request_id,
       snapshot: claimed.checkout_request_body,
-    })
-
-    console.info('DOKU CHECKOUT CREATED:', {
-      paymentId: claimed.id,
-      hasPaymentUrl: Boolean(dokuResult.paymentUrl),
     })
 
     // TAHAP 2: Parsing tanggal kedaluwarsa
@@ -135,12 +137,6 @@ export const createPremiumCheckout = async (userId) => {
       throw error
     }
 
-    console.info('DOKU CHECKOUT SAVED:', {
-      paymentId: claimed.id,
-      status: updated.status,
-      hasPaymentUrl: Boolean(updated.payment_url),
-    })
-
     // TAHAP 4: Kembalikan pembayaran ke frontend
     checkoutStage = 'map_payment'
 
@@ -150,17 +146,11 @@ export const createPremiumCheckout = async (userId) => {
     }
 
   } catch (error) {
-    console.error('DOKU INIT FAILED:', {
-      paymentId: claimed.id,
-      stage: checkoutStage,
-      code: error.code ?? 'DOKU_INIT_ERROR',
-      message: error.message,
-      expectedOrigin: error.expectedOrigin,
-      receivedOrigin: error.receivedOrigin,
-      httpStatus: error.httpStatus,
+    console.error('DOKU checkout initialization failed:', {
+      paymentId: claimed.id, stage: checkoutStage,
+      code: error.code ?? 'DOKU_INIT_ERROR', httpStatus: error.httpStatus,
       providerDiagnostic: error.providerDiagnostic,
     })
-
     const current = await findPaymentByIdAndUserId(
       claimed.id,
       userId
@@ -189,5 +179,20 @@ export const getUserPaymentById = async (
     throw error;
   }
 
+  // Ownership is checked before any provider request or subscription mutation.
+  if ((['initiating', 'pending', 'reconciling'].includes(payment.status) ||
+      (payment.status === 'paid' && !payment.applied_at)) &&
+      await claimPaymentStatusRefresh(payment.id)) {
+    try {
+      if (payment.status === 'paid') await applyVerifiedPremiumPayment(payment.id)
+      else await reconcileDokuPayment(payment.id, { allowReplay: false })
+    } catch (error) {
+      console.error('Payment status refresh unresolved:', {
+        paymentId: payment.id, code: error.code ?? 'PAYMENT_STATUS_REFRESH_FAILED',
+        httpStatus: error.httpStatus,
+      })
+    }
+    return mapPayment(await findPaymentByIdAndUserId(payment.id, userId))
+  }
   return mapPayment(payment);
 };
