@@ -6,7 +6,8 @@ import {
   validateHeaders,
   validateImportRow,
   validateImportOptionScores,
-  detectDuplicateRows
+  detectDuplicateRows,
+  validateImportLatex
 } from '../validators/excel-import.validator.js';
 
 import {
@@ -230,6 +231,21 @@ export const previewExcelImport = async (buffer, zipEntries = []) => {
     );
     });
 
+  // LaTeX validation
+  rows.forEach((row, index) => {
+    const rowNumber = index + 2;
+
+    const latexErrors = validateImportLatex(
+      row,
+      rowNumber
+    );
+
+    addRowErrors(
+      rowStatusMap,
+      latexErrors
+    );
+  });
+
   // 2. Duplicate dalam Excel
   const duplicateRows =
     detectDuplicateRows(rows);
@@ -439,6 +455,21 @@ export const importQuestionsFromExcel =
           result.errors
         );
       }
+    });
+    
+    // LaTeX validation
+    rows.forEach((row, index) => {
+      const rowNumber = index + 2;
+
+      const latexErrors = validateImportLatex(
+        row,
+        rowNumber
+      );
+
+      addRowErrors(
+        rowStatusMap,
+        latexErrors
+      );
     });
 
     // ==============================

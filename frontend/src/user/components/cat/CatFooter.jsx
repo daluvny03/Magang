@@ -5,6 +5,7 @@ function CatFooter({
     isSavingProgress,
     onPrevious,
     onNext,
+    onFinish,
     onToggleDoubtful,
 }) {
     return (
@@ -37,14 +38,13 @@ function CatFooter({
 
                 <button
                     type="button"
-                    onClick={onNext}
+                    onClick={isLastQuestion ? onFinish : onNext}
                     disabled={
-                        isLastQuestion ||
                         isSavingProgress
                     }
                     className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
                 >
-                    Selanjutnya
+                    {isLastQuestion ? 'Selesai' : 'Selanjutnya'}
                 </button>
             </div>
         </footer>

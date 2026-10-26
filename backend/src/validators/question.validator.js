@@ -29,9 +29,8 @@ const answerOptionSchema = Joi.object({
 const explanationSchema = Joi.object({
   summary: Joi.string()
     .trim()
-    .min(1)
     .max(2000)
-    .required(),
+    .allow('', null),
 
   detail: Joi.string()
     .trim()
@@ -50,7 +49,7 @@ const explanationSchema = Joi.object({
     D: Joi.string().allow('', null),
     E: Joi.string().allow('', null)
   }).optional()
-}).required();
+}).default({});
 
 export const createQuestionSchema = Joi.object({
   categoryId: Joi.number()

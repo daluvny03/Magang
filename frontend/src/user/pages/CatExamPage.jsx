@@ -713,11 +713,14 @@ function CatExamPage() {
                     isCurrentQuestionDoubtful
                 }
                 isSavingProgress={
-                    saveProgressMutation.isPending
+                    saveProgressMutation.isPending ||
+                    saveAnswerMutation.isPending ||
+                    finishAttemptMutation.isPending
                 }
                 onPrevious={
                     handlePreviousQuestion
                 }
+                onFinish={() => setIsFinishModalOpen(true)}
                 onNext={
                     handleNextQuestion
                 }

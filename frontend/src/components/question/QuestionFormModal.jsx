@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
-
+import MathLivePreview from '../common/MathLivePreview'
 import Alert from '../ui/Alert'
 import Button from '../ui/Button'
 import FormField from '../ui/FormField'
@@ -53,9 +53,9 @@ const questionSchema = z
       ),
     correctAnswer: z.string().min(1, 'Correct answer is required'),
     explanation: z.object({
-      summary: required('Summary'),
-      detail: required('Detail'),
-      tips: required('Tips'),
+      summary: z.string().trim().max(2000),
+      detail: z.string().trim().max(5000),
+      tips: z.string().trim().max(2000),
     }),
     score: z.coerce
       .number({ invalid_type_error: 'Score must be a number' })
@@ -121,13 +121,13 @@ const normalizeQuestionForForm = (q) => ({
   removeQuestionImage: false,
   answerOptions: q.answerOptions?.length
     ? q.answerOptions.map((o, i) => ({
-        key: o.key || String.fromCharCode(65 + i),
-        text: o.text || '',
-        ...(o.score != null ? { score: Number(o.score) } : {}),
-        image: o.image || null,
-        imageFile: null,
-        removeImage: false,
-      }))
+      key: o.key || String.fromCharCode(65 + i),
+      text: o.text || '',
+      ...(o.score != null ? { score: Number(o.score) } : {}),
+      image: o.image || null,
+      imageFile: null,
+      removeImage: false,
+    }))
     : createEmptyOptions(),
   correctAnswer: q.correctAnswer || '',
   explanation: {
@@ -193,10 +193,18 @@ function QuestionFormModal({
   const questionImage = useWatch({ control, name: 'questionImage' })
   const questionImageFile = useWatch({ control, name: 'questionImageFile' })
   const removeQuestionImage = useWatch({ control, name: 'removeQuestionImage' })
+  const questionText = useWatch({
+    control,
+    name: 'questionText',
+  })
+  const explanation = useWatch({
+    control,
+    name: 'explanation',
+  })
 
   const [previousFormInputs, setPreviousFormInputs] = useState(null)
   if (previousFormInputs?.isOpen !== isOpen || previousFormInputs?.isEdit !== isEdit ||
-      previousFormInputs?.value !== question) {
+    previousFormInputs?.value !== question) {
     setPreviousFormInputs({ isOpen, isEdit, value: question })
     if (isOpen) setPreviewValues(null)
   }
@@ -281,13 +289,22 @@ function QuestionFormModal({
             />
           </FormField>
 
-          <FormField label="Question" htmlFor="q-text" error={fieldError('questionText')}>
-            <Input
+          <FormField
+            label="Question"
+            htmlFor="q-text"
+            error={fieldError('questionText')}
+          >
+            <Textarea
               id="q-text"
+              rows={4}
               {...register('questionText')}
               error={fieldError('questionText')}
-              placeholder="Enter question..."
+              placeholder="Enter question or LaTeX expression..."
             />
+
+            <div className="mt-2">
+              <MathLivePreview content={questionText} />
+            </div>
             <div className="mt-3">
               <ImageInput
                 label="Add Question Image"
@@ -327,26 +344,39 @@ function QuestionFormModal({
           </FormField>
 
           <div className="space-y-4 rounded-xl border border-gray-200 p-4">
-            <p className="text-sm font-semibold text-gray-900">Explanation</p>
+            <p className="text-sm font-semibold text-gray-900">Explanation (opsional)</p>
 
-            {EXPLANATION_FIELDS.map(([name, label, rows, placeholder]) => {
-              const error =
-                errors.explanation?.[name]?.message ||
-                serverErrors[`explanation.${name}`] ||
-                (name === 'summary' && serverErrors.explanation)
+            {EXPLANATION_FIELDS.map(
+              ([name, label, rows, placeholder]) => {
+                const error =
+                  errors.explanation?.[name]?.message ||
+                  serverErrors[`explanation.${name}`] ||
+                  (name === 'summary' && serverErrors.explanation)
 
-              return (
-                <FormField key={name} label={label} htmlFor={`q-${name}`} error={error}>
-                  <Textarea
-                    id={`q-${name}`}
-                    rows={rows}
-                    {...register(`explanation.${name}`)}
+                return (
+                  <FormField
+                    key={name}
+                    label={label}
+                    htmlFor={`q-${name}`}
                     error={error}
-                    placeholder={placeholder}
-                  />
-                </FormField>
-              )
-            })}
+                  >
+                    <Textarea
+                      id={`q-${name}`}
+                      rows={rows}
+                      {...register(`explanation.${name}`)}
+                      error={error}
+                      placeholder={placeholder}
+                    />
+
+                    <div className="mt-2">
+                      <MathLivePreview
+                        content={explanation?.[name]}
+                      />
+                    </div>
+                  </FormField>
+                )
+              }
+            )}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">

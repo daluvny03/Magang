@@ -1,3 +1,6 @@
+
+import MathText from '../../../components/common/MathText'
+
 function QuestionPanel({
     question,
     currentNumber,
@@ -21,6 +24,7 @@ function QuestionPanel({
                 </span>
             </div>
 
+            {/* Question Category */}
             {Array.isArray(question.categoryPath) &&
                 question.categoryPath.length > 0 && (
                     <nav
@@ -55,6 +59,7 @@ function QuestionPanel({
                     </nav>
                 )}
 
+            {/* Question Content */}
             <div className="pt-6">
                 {question.questionImage && (
                     <img
@@ -64,48 +69,54 @@ function QuestionPanel({
                     />
                 )}
 
-                <p className="whitespace-pre-line text-base leading-8 text-gray-800">
-                    {question.questionText}
-                </p>
+                {/* LaTeX Question Renderer */}
+                <MathText
+                    content={question.questionText}
+                    className="text-base leading-8 text-gray-800"
+                />
 
+                {/* Answer Options */}
                 <div className="mt-7 space-y-3">
-                    {question.answerOptions?.map(
-                        (option) => {
-                            const isSelected =
-                                selectedAnswer ===
-                                option.key
+                    {question.answerOptions?.map((option) => {
+                        const isSelected =
+                            selectedAnswer === option.key
 
-                            return (
-                                <button
-                                    key={option.key}
-                                    type="button"
-                                    disabled={isSavingAnswer}
-                                    onClick={() =>
-                                        onSelectAnswer(
-                                            option.key
-                                        )
-                                    }
-                                    className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left transition disabled:cursor-wait disabled:opacity-70 ${isSelected
+                        return (
+                            <button
+                                key={option.key}
+                                type="button"
+                                disabled={isSavingAnswer}
+                                onClick={() =>
+                                    onSelectAnswer(option.key)
+                                }
+                                aria-pressed={isSelected}
+                                className={`flex w-full min-w-0 items-start gap-3 rounded-xl border p-4 text-left transition disabled:cursor-wait disabled:opacity-70 ${
+                                    isSelected
                                         ? 'border-blue-500 bg-blue-50'
                                         : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-gray-50'
-                                        }`}
-                                >
-                                    <span
-                                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold ${isSelected
+                                }`}
+                            >
+                                {/* Answer Key */}
+                                <span
+                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold ${
+                                        isSelected
                                             ? 'border-blue-600 bg-blue-600 text-white'
                                             : 'border-gray-200 bg-gray-50 text-gray-700'
-                                            }`}
-                                    >
-                                        {option.key}
-                                    </span>
+                                    }`}
+                                >
+                                    {option.key}
+                                </span>
 
-                                    <span className="pt-1.5 text-sm font-medium leading-6 text-gray-700">
-                                        {option.text}
-                                    </span>
-                                </button>
-                            )
-                        }
-                    )}
+                                {/* LaTeX Answer Renderer */}
+                                <div className="min-w-0 flex-1 pt-1.5">
+                                    <MathText
+                                        content={option.text}
+                                        className="text-sm font-medium leading-6 text-gray-700"
+                                    />
+                                </div>
+                            </button>
+                        )
+                    })}
                 </div>
             </div>
         </section>

@@ -1,3 +1,4 @@
+import { validateLatexContent } from '../utils/latex-validator.js';
 export const REQUIRED_HEADERS = [
   'category',
   'question',
@@ -287,4 +288,36 @@ export const detectDuplicateRows = (
   });
 
   return duplicates;
+};
+
+export const validateImportLatex = (row, rowNumber) => {
+  const errors = [];
+
+  const fields = [
+    'question',
+    'option_a',
+    'option_b',
+    'option_c',
+    'option_d',
+    'option_e',
+    'explanation_summary',
+    'explanation_detail',
+    'explanation_tips',
+  ];
+
+  for (const field of fields) {
+    const content = String(row[field] ?? '');
+
+    const latexErrors = validateLatexContent(content);
+
+    for (const error of latexErrors) {
+      errors.push({
+        row: rowNumber,
+        field,
+        message: error.message,
+      });
+    }
+  }
+
+  return errors;
 };
