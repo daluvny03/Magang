@@ -24,7 +24,6 @@ try {
   }
   const payment = await inspectRecoveryPayment(paymentId)
   if (action === 'inspect' || !values.execute) {
-    console.log(JSON.stringify({ preview: action !== 'inspect', action, payment }, null, 2))
   } else {
     if (values['confirm-invoice'] !== payment.invoiceNumber) {
       throw new Error('Explicit --confirm-invoice matching this payment is required')
@@ -45,7 +44,6 @@ try {
         maintenanceConfirmed: values['maintenance-confirmed'],
       })
     }
-    console.log(JSON.stringify(result, null, 2))
   }
 } catch (error) {
   console.error('Payment operator command failed:', { code: error.code ?? 'OPERATOR_COMMAND_FAILED', message: error.code ? undefined : error.message })
