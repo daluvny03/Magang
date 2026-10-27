@@ -1,171 +1,67 @@
-
-import { useMemo, useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import QuestionNavigation from './QuestionNavigation'
-
 import QuestionAnalysisCard from './QuestionAnalysisCard'
 
-const CATEGORY_OPTIONS = [
-    { value: 'all', label: 'Semua' },
-    { value: 'twk', label: 'TWK' },
-    { value: 'tiu', label: 'TIU' },
-    { value: 'tkp', label: 'TKP' },
-]
+function QuestionAnalysisList({ questions = [], resultUrl }) {
+  const [category, setCategory] = useState('all')
+  const [selectedIndex, setSelectedIndex] = useState(0)
+  const questionPanel = useRef(null)
+  const sorted = useMemo(() => Array.isArray(questions)
+    ? [...questions].sort((a, b) => Number(a.questionOrder) - Number(b.questionOrder))
+    : [], [questions])
+  const categories = [...new Set(sorted.map((question) => question.categorySlug))]
+  const filtered = category === 'all' ? sorted : sorted.filter((question) => question.categorySlug === category)
+  const index = Math.min(selectedIndex, Math.max(0, filtered.length - 1))
+  const currentQuestion = filtered[index]
+  const selectQuestion = (nextIndex) => {
+    setSelectedIndex(nextIndex)
+    questionPanel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    questionPanel.current?.focus({ preventScroll: true })
+  }
 
-function QuestionAnalysisList({ questions = [] }) {
-    const [category, setCategory] = useState('all')
-    const [selectedIndex, setSelectedIndex] = useState(0)
+  if (!sorted.length) return <p className="p-6 text-center text-gray-500">Pembahasan soal belum tersedia.</p>
 
-    const filteredQuestions = useMemo(() => {
-        if (!Array.isArray(questions)) return []
-
-        const sorted = [...questions].sort(
-            (a, b) =>
-                Number(a.questionOrder) -
-                Number(b.questionOrder)
-        )
-
-        if (category === 'all') return sorted
-
-        return sorted.filter(
-            (question) => question.categorySlug === category
-        )
-    }, [questions, category])
-
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSelectedIndex((previousIndex) => {
-            if (filteredQuestions.length === 0) {
-                return 0
-            }
-
-            return Math.min(
-                previousIndex,
-                filteredQuestions.length - 1
-            )
-        })
-    }, [filteredQuestions])
-
-    const currentQuestion =
-        filteredQuestions[selectedIndex] ?? null
-
-    const handleCategoryChange = (nextCategory) => {
-        setCategory(nextCategory)
-        setSelectedIndex(0)
-    }
-
-    const previousQuestion = () => {
-        setSelectedIndex((index) => Math.max(0, index - 1))
-    }
-
-    const nextQuestion = () => {
-        setSelectedIndex((index) =>
-            Math.min(filteredQuestions.length - 1, index + 1)
-        )
-    }
-
-    if (!Array.isArray(questions) || questions.length === 0) {
-        return null
-    }
-
-    return (
-        <section
-            aria-labelledby="question-analysis-title"
-            className="space-y-5"
-        >
-            <div>
-                <h2
-                    id="question-analysis-title"
-                    className="text-lg font-semibold text-slate-900"
-                >
-                    Analisis & Pembahasan Soal
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                    Tinjau jawaban, skor, dan pembahasan
-                    setiap soal yang telah dikerjakan.
-                </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-                {CATEGORY_OPTIONS.map((option) => {
-                    const active = category === option.value
-
-                    return (
-                        <button
-                            key={option.value}
-                            type="button"
-                            onClick={() =>
-                                handleCategoryChange(option.value)
-                            }
-                            aria-pressed={active}
-                            className={[
-                                'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
-                                active
-                                    ? 'bg-slate-900 text-white'
-                                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
-                            ].join(' ')}
-                        >
-                            {option.label}
-                        </button>
-                    )
-                })}
-            </div>
-
-            <QuestionNavigation
-                questions={filteredQuestions}
-                selectedIndex={selectedIndex}
-                onSelect={setSelectedIndex}
-            />
-
-            {currentQuestion ? (
-                <>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-sm text-slate-600">
-                            Menampilkan soal {selectedIndex + 1}
-                            {' dari '}
-                            {filteredQuestions.length}
-                        </p>
-                    </div>
-
-                    <QuestionAnalysisCard
-                        key={currentQuestion.questionId}
-                        question={currentQuestion}
-                    />
-
-                    <div className="flex items-center justify-between gap-3">
-                        <button
-                            type="button"
-                            onClick={previousQuestion}
-                            disabled={selectedIndex === 0}
-                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                            <ChevronLeft size={16} />
-                            Sebelumnya
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={nextQuestion}
-                            disabled={
-                                selectedIndex >= filteredQuestions.length - 1
-                            }
-                            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
-                        >
-                            Berikutnya
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
-                </>
-            ) : (
-                <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center">
-                    <p className="text-sm text-slate-500">
-                        Tidak ada soal pada kategori ini.
-                    </p>
-                </div>
-            )}
-        </section>
-    )
+  return (
+    <section aria-label="Pembahasan soal" className="flex flex-1 flex-col">
+      <div className="mx-auto grid w-full max-w-[1600px] flex-1 items-start gap-5 px-4 py-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-6">
+        <div ref={questionPanel} tabIndex={-1} className="min-w-0 scroll-mt-24 outline-none">
+          {currentQuestion ? (
+            <QuestionAnalysisCard key={currentQuestion.questionId} question={currentQuestion} />
+          ) : <p className="rounded-xl bg-white p-6">Tidak ada soal pada kategori ini.</p>}
+        </div>
+        <aside className="space-y-4 lg:sticky lg:top-24">
+          <div className="rounded-2xl border border-gray-200 bg-white p-5">
+            <h2 className="text-sm font-bold text-gray-900">Informasi Pembahasan</h2>
+            <p className="mt-3 text-sm text-gray-600">{sorted.length} soal · Mode tinjauan</p>
+            <p className="mt-2 text-xs leading-5 text-gray-500">Jawaban ujian sudah tersimpan. Pelajari kunci jawaban, skor, dan pembahasan tiap soal.</p>
+            <label htmlFor="review-category" className="mt-4 block text-sm font-medium text-gray-700">Kategori</label>
+            <select id="review-category" value={category} onChange={(event) => {
+              setCategory(event.target.value)
+              setSelectedIndex(0)
+            }} className="mt-2 w-full rounded-lg border border-gray-200 bg-white p-2 text-sm">
+              <option value="all">Semua kategori</option>
+              {categories.map((slug) => <option key={slug} value={slug}>{slug.toUpperCase()}</option>)}
+            </select>
+          </div>
+          <QuestionNavigation questions={filtered} selectedIndex={index} onSelect={selectQuestion} />
+        </aside>
+      </div>
+      <footer className="sticky bottom-0 z-20 border-t border-gray-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-3 lg:px-6">
+          <button type="button" onClick={() => selectQuestion(index - 1)} disabled={index === 0}
+            className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 disabled:opacity-40">Sebelumnya</button>
+          <p aria-live="polite" className="text-center text-xs text-gray-500">{filtered.length ? index + 1 : 0} / {filtered.length} soal</p>
+          {index === filtered.length - 1 && resultUrl ? (
+            <Link to={resultUrl} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white">Kembali ke Hasil</Link>
+          ) : (
+            <button type="button" onClick={() => selectQuestion(index + 1)} disabled={index >= filtered.length - 1}
+              className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Selanjutnya</button>
+          )}
+        </div>
+      </footer>
+    </section>
+  )
 }
 
 export default QuestionAnalysisList

@@ -31,11 +31,24 @@ import {
 
 import {
   getAttemptAnalysis,
+  getAttemptAnalysisSummary,
 } from '../controllers/attempt-analysis.controller.js'
 
 import {
   validateAnalysisParams,
 } from '../middlewares/validate-analysis-params.middleware.js'
+
+import {
+  requirePremium,
+} from '../middlewares/require-premium.middleware.js'
+
+import {
+  validateAnalysisAccess,
+} from '../middlewares/validate-analysis-access.middleware.js'
+
+import {
+  getAttemptStatistics,
+} from '../controllers/attempt-statistics.controller.js'
 
 const router = Router()
 
@@ -46,8 +59,21 @@ router.get(
 )
 
 router.get(
+  '/statistics',
+  getAttemptStatistics
+)
+
+router.get(
+  '/:attemptId/analysis/summary',
+  validateAnalysisParams,
+  getAttemptAnalysisSummary
+)
+
+router.get(
   '/:attemptId/analysis',
   validateAnalysisParams,
+  validateAnalysisAccess,
+  requirePremium,
   getAttemptAnalysis
 )
 

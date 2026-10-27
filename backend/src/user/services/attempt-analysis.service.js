@@ -428,3 +428,19 @@ export const getAttemptAnalysisForUser = async ({
         },
   }
 }
+
+export const getAttemptAnalysisSummaryForUser = async ({
+  userId,
+  attemptId,
+}) => {
+  const analysis = await getAttemptAnalysisForUser({
+    userId,
+    attemptId,
+  })
+
+  return {
+    attempt: analysis.attempt,
+    summary: analysis.summary,
+    categories: analysis.categories,
+  }
+}

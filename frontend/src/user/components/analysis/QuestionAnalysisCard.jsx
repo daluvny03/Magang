@@ -1,6 +1,6 @@
 import { CheckCircle2, XCircle } from 'lucide-react'
 import { getImageUrl } from '../../../utils/image-url'
-import QuestionTimeInsight from './QuestionTimeInsight'
+import MathText from '../../../components/common/MathText'
 
 const formatNumber = (value) => {
     if (value == null) return '—'
@@ -61,9 +61,11 @@ function QuestionOption({ question, option }) {
         'rounded-xl border p-3 sm:p-4',
         correct
             ? 'border-green-300 bg-green-50'
-            : selected
-                ? 'border-blue-300 bg-blue-50'
-                : 'border-slate-200 bg-white',
+            : selected && !isTKP
+                ? 'border-red-300 bg-red-50'
+                : selected
+                    ? 'border-blue-300 bg-blue-50'
+                    : 'border-slate-200 bg-white',
     ].join(' ')
 
     return (
@@ -75,9 +77,10 @@ function QuestionOption({ question, option }) {
 
                 <div className="min-w-0 flex-1 space-y-2">
                     {option.text && (
-                        <p className="whitespace-pre-wrap break-words text-sm text-slate-800">
-                            {option.text}
-                        </p>
+                        <MathText
+                            content={option.text}
+                            className="text-sm leading-relaxed text-slate-800"
+                        />
                     )}
 
                     {option.image && (
@@ -156,9 +159,10 @@ function Explanation({ explanation }) {
                         {label}
                     </h4>
 
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-600">
-                        {data[key]}
-                    </p>
+                    <MathText
+                        content={data[key]}
+                        className="text-sm leading-relaxed text-slate-600"
+                    />
                 </div>
             ))}
         </div>
@@ -188,9 +192,10 @@ function QuestionAnalysisCard({ question }) {
 
             <div className="mb-5 space-y-3">
                 {question.questionText && (
-                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-800">
-                        {question.questionText}
-                    </p>
+                    <MathText
+                        content={question.questionText}
+                        className="text-sm leading-relaxed text-slate-800"
+                    />
                 )}
 
                 {question.questionImage && (
@@ -270,7 +275,6 @@ function QuestionAnalysisCard({ question }) {
 
                 <Explanation explanation={question.explanation} />
             </div>
-            <QuestionTimeInsight question={question} />
         </article>
     )
 }

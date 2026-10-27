@@ -50,7 +50,7 @@ function QuestionNavigation({
         <span className="text-slate-500">○ Belum dijawab</span>
       </div>
 
-      <div className="grid grid-cols-5 gap-2 sm:grid-cols-8 lg:grid-cols-10">
+      <div className="grid max-h-[45vh] grid-cols-5 gap-2 overflow-y-auto p-1 sm:grid-cols-8 lg:grid-cols-5">
         {questions.map((question, index) => {
           const status = getQuestionStatus(question)
           const active = selectedIndex === index

@@ -40,7 +40,7 @@ function TryoutPage() {
     }
 
     const handleSubscribe = () => {
-        navigate('/user/subscription')
+        navigate('/user/forbidden')
     }
 
     return (

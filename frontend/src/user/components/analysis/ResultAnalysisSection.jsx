@@ -1,7 +1,7 @@
 
 import { AlertCircle, RefreshCw } from 'lucide-react'
 
-import { useAttemptAnalysis } from '../../hooks/useAttemptAnalysis'
+import { useAttemptAnalysisSummary } from '../../hooks/useAttemptAnalysisSummary'
 
 import AnalysisSummary from './AnalysisSummary'
 import CategoryPerformance from './CategoryPerformance'
@@ -82,7 +82,7 @@ function ResultAnalysisSection({ attemptId }) {
     isError,
     error,
     refetch,
-  } = useAttemptAnalysis(attemptId)
+  } = useAttemptAnalysisSummary(attemptId)
 
   if (isPending && !isError) {
     return <AnalysisLoading />

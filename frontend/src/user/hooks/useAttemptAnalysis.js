@@ -25,14 +25,19 @@ export const useAttemptAnalysis = (
     queryFn: ({ signal }) =>
       getAttemptAnalysis(attemptId, { signal }),
 
-    enabled: Boolean(userId) && Boolean(attemptId),
+    enabled:
+      Boolean(userId) &&
+      /^[1-9]\d*$/.test(String(attemptId ?? '')),
 
-    staleTime: 60 * 1000,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
 
     retry: (failureCount, error) => {
       const status = error?.response?.status
 
-      if ([401, 403, 404, 409, 422].includes(status)) {
+      if ([400, 401, 403, 404, 409, 422].includes(status)) {
         return false
       }
 

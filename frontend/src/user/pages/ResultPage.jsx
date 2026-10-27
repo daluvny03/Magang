@@ -1,7 +1,7 @@
 
-import { ArrowLeft, AlertCircle, Loader2, ArrowRight } from 'lucide-react'
+import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
-
+import AdvancedAnalysisCard from '../components/result/AdvancedAnalysisCard'
 import { useAttemptResult } from '../hooks/useAttemptResult'
 
 import ResultInformationCard from '../components/result/ResultInformationCard'
@@ -83,11 +83,11 @@ function ResultPage() {
             {/* Page Header */}
             <div className="space-y-4">
                 <Link
-                    to="/user/tryouts"
+                    to="/user/history"
                     className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition hover:text-blue-600"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    Kembali ke Daftar Tryout
+                    Kembali ke Riwayat Tryout
                 </Link>
 
                 <div>
@@ -158,17 +158,8 @@ function ResultPage() {
                 </div>
 
                 <ResultAnalysisSection attemptId={attemptId} />
-
-                <div className="flex justify-end">
-                    <Link
-                        to={`/user/results/${attemptId}/analysis`}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-                    >
-                        Lihat Analisis Per Soal
-                        <ArrowRight size={18} aria-hidden="true" />
-                    </Link>
-                </div>
             </section>
+            <AdvancedAnalysisCard attemptId={attemptId} />
         </div>
     )
 }
@@ -189,11 +180,11 @@ function ResultMessage({ title, description }) {
             </p>
 
             <Link
-                to="/user/tryouts"
+                to="/user/history"
                 className="mt-6 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
             >
                 <ArrowLeft className="h-4 w-4" />
-                Kembali ke Tryout
+                Kembali ke Riwayat Tryout
             </Link>
         </div>
     )
