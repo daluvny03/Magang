@@ -1,3 +1,7 @@
+import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage'
+import ResetPasswordPage from '../pages/auth/ResetPasswordPage'
+import RegisterPage from '../pages/auth/RegisterPage'
+import VerifyEmailPage from '../pages/auth/VerifyEmailPage'
 import {
     BrowserRouter,
     Navigate,
@@ -23,8 +27,14 @@ import TryoutDetailPage from '../user/pages/TryoutDetailPage'
 import CatExamPage from '../user/pages/CatExamPage'
 import ResultPage from '../user/pages/ResultPage'
 import HistoryPage from '../user/pages/HistoryPage'
-import AnalysisPage from '../user/pages/AnalysisPage'
+import TimeAnalysisPage from '../user/pages/TimeAnalysisPage'
 import SubscriptionPage from '../user/pages/SubscriptionPage'
+import PaymentSuccessPage from '../user/pages/PaymentSuccesPage'
+import ForbiddenPageUser from '../user/pages/ForbiddenPage'
+import AnswerReviewPage from '../user/pages/AnswerReviewPage'
+import LeaderboardPage from '../user/pages/LeaderboardPage'
+import StatisticsPage from '../user/pages/StatisticsPage'
+import PaymentHistoryPage from '../user/pages/PaymentHistoryPage'
 
 function AppRouter() {
     return (
@@ -32,6 +42,10 @@ function AppRouter() {
             <Routes>
                 {/* Public */}
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/verify-email" element={<VerifyEmailPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
 
                 <Route
                     path="/403"
@@ -113,8 +127,9 @@ function AppRouter() {
 
                         <Route
                             path="results/:attemptId/analysis"
-                            element={<AnalysisPage />}
+                            element={<TimeAnalysisPage />}
                         />
+
 
                         <Route
                             path="profile"
@@ -125,7 +140,37 @@ function AppRouter() {
                             path="subscription"
                             element={<SubscriptionPage />}
                         />
+
+                        <Route
+                            path="/user/payment/success"
+                            element={<PaymentSuccessPage />}
+                        />
+
+                        <Route
+                            path="forbidden"
+                            element={<ForbiddenPageUser />}
+                        />
+
+                        <Route
+                            path="leaderboard"
+                            element={<LeaderboardPage />}
+                        />
+
+                        <Route
+                            path="statistics"
+                            element={<StatisticsPage />}
+                        />
+
+                        <Route
+                            path="payments"
+                            element={<PaymentHistoryPage />}
+                        />
                     </Route>
+
+                    <Route
+                        path="/user/results/:attemptId/answers"
+                        element={<AnswerReviewPage />}
+                    />
 
                     <Route
                         path="/user/cat/:attemptId"

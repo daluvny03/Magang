@@ -20,10 +20,6 @@ function Navbar({ onMenuClick }) {
         >
           <Menu size={22} />
         </button>
-
-        <span className="text-lg font-bold text-primary-600">
-          Halobakat
-        </span>
       </div>
 
       <div className="flex items-center gap-3 sm:gap-4">

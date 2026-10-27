@@ -1,3 +1,4 @@
+
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 
@@ -5,9 +6,7 @@ import Navbar from '../components/layout/Navbar'
 import Sidebar from '../components/layout/Sidebar'
 
 function UserLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(
-    () => window.innerWidth >= 1024
-  )
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   return (
     <div className="min-h-screen bg-white">
@@ -18,11 +17,15 @@ function UserLayout() {
 
       <div
         className={`transition-[padding] duration-200 ${
-          sidebarOpen ? 'lg:pl-64' : 'lg:pl-0'
+          sidebarOpen
+            ? 'lg:pl-64'
+            : 'lg:pl-20'
         }`}
       >
         <Navbar
-          onMenuClick={() => setSidebarOpen((prev) => !prev)}
+          onMenuClick={() =>
+            setSidebarOpen((prev) => !prev)
+          }
         />
 
         <main className="p-4 lg:p-6">
