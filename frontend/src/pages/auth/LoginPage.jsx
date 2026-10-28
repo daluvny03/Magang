@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Eye, EyeOff } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { z } from 'zod'
-
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton'
 import Button from '../../components/ui/Button'
-import { login } from '../../services/auth.service'
+import { login, loginWithGoogle } from '../../services/auth.service'
 import { useAuthStore } from '../../stores/authStore'
 import characterImage from '../../assets/login-character.png'
 
@@ -17,7 +17,7 @@ const loginSchema = z.object({
 })
 
 // Ubah ke false untuk menyembunyikan elemen yang belum punya fitur backend
-// (Ingat Saya, Lupa Password, Google, Daftar)
+// (Ingat Saya dan Google belum tersedia)
 const SHOW_EXTRAS = true
 
 const backgroundStyle = {
@@ -42,23 +42,13 @@ const inputState = (error) =>
     ? 'border-red-400 focus:ring-red-200'
     : 'border-transparent focus:border-primary-500 focus:ring-primary-500/30'
 
-function GoogleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z" />
-      <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z" />
-      <path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3.1-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.100 0 24s.9 7.600 2.600 10.800l7.900-6.100z" />
-      <path fill="#34A853" d="M24 48c6.5 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z" />
-    </svg>
-  )
-}
-
 function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const loginStore = useAuthStore((state) => state.login)
   const [showPassword, setShowPassword] = useState(false)
-
+  const [googlePending, setGooglePending] = useState(false)
+  const authLockRef = useRef(false)
   const {
     register,
     handleSubmit,
@@ -69,6 +59,8 @@ function LoginPage() {
   })
 
   const onSubmit = async (values) => {
+    if (authLockRef.current) return
+    authLockRef.current = true
     try {
       const response = await login(values)
 
@@ -78,6 +70,15 @@ function LoginPage() {
       }
 
       const { accessToken, user } = response.data
+      if (
+        typeof accessToken !== 'string' ||
+        !accessToken ||
+        !user?.id ||
+        !['admin', 'user'].includes(user.role)
+      ) {
+        toast.error('Respons login tidak valid')
+        return
+      }
       loginStore({ accessToken, user })
       toast.success('Login berhasil')
       const defaultDestination =
@@ -88,8 +89,17 @@ function LoginPage() {
       const fromPath = location.state?.from?.pathname
 
       const canRedirectToFrom =
-        (user.role === 'admin' && fromPath?.startsWith('/admin')) ||
-        (user.role === 'user' && fromPath?.startsWith('/user'))
+        typeof fromPath === 'string' &&
+        (
+          (
+            user.role === 'admin' &&
+            (fromPath === '/admin' || fromPath.startsWith('/admin/'))
+          ) ||
+          (
+            user.role === 'user' &&
+            (fromPath === '/user' || fromPath.startsWith('/user/'))
+          )
+        )
 
       const destination = canRedirectToFrom
         ? fromPath
@@ -97,13 +107,96 @@ function LoginPage() {
 
       navigate(destination, { replace: true })
     } catch (error) {
+      if (error.response?.data?.errors?.some((item) => item.code === 'EMAIL_NOT_VERIFIED')) {
+        navigate('/verify-email', { state: { email: values.email } })
+        return
+      }
       toast.error(
         error.response?.data?.message || 'Terjadi kesalahan saat login'
       )
+    } finally {
+      authLockRef.current = false
     }
   }
 
-  const notAvailable = () => toast.info('Fitur ini belum tersedia')
+  const onGoogleCredential = async (credential) => {
+    if (authLockRef.current) return
+    authLockRef.current = true
+    setGooglePending(true)
+    try {
+      const response = await loginWithGoogle(credential)
+
+      if (!response.success) {
+        toast.error(response.message || 'Login Google gagal')
+        return
+      }
+
+      const { user, accessToken } = response.data
+      if (
+        typeof accessToken !== 'string' ||
+        !accessToken ||
+        !user?.id ||
+        !['admin', 'user'].includes(user.role)
+      ) {
+        toast.error('Respons autentikasi Google tidak valid')
+        return
+      }
+      loginStore({ user, accessToken })
+
+      toast.success('Login dengan Google berhasil')
+
+      const defaultDestination =
+        user.role === 'admin'
+          ? '/admin/dashboard'
+          : '/user/dashboard'
+
+      const fromPath = location.state?.from?.pathname
+
+      const canRedirectToFrom =
+        typeof fromPath === 'string' &&
+        (
+          (
+            user.role === 'admin' &&
+            (fromPath === '/admin' || fromPath.startsWith('/admin/'))
+          ) ||
+          (
+            user.role === 'user' &&
+            (fromPath === '/user' || fromPath.startsWith('/user/'))
+          )
+        )
+
+      navigate(
+        canRedirectToFrom ? fromPath : defaultDestination,
+        { replace: true }
+      )
+    } catch (error) {
+      const errorCode = error.response?.data?.errors?.[0]?.code
+
+      if (errorCode === 'GOOGLE_ACCOUNT_LINK_REQUIRED') {
+        toast.error(
+          'Email sudah terdaftar. Masuk menggunakan password terlebih dahulu.'
+        )
+        return
+      }
+
+      if (errorCode === 'GOOGLE_EMAIL_VERIFICATION_REQUIRED') {
+        toast.error(
+          'Alamat email Google memerlukan verifikasi tambahan.'
+        )
+        return
+      }
+
+      if (error.code === 'ERR_CANCELED') return
+
+      toast.error(
+        error.response?.data?.message ||
+        'Terjadi kesalahan saat login dengan Google'
+      )
+    } finally {
+      setGooglePending(false)
+      authLockRef.current = false
+    }
+  }
 
   return (
     <div
@@ -121,7 +214,12 @@ function LoginPage() {
             Masuk ke Akunmu
           </h2>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="mt-7 space-y-4">
+          <form
+            onSubmit={(event) => {
+              void handleSubmit(onSubmit)(event)
+            }}
+            className="mt-7 space-y-4"
+          >
             <div>
               <input
                 type="email"
@@ -175,13 +273,9 @@ function LoginPage() {
                   />
                   Ingat Saya
                 </label>
-                <button
-                  type="button"
-                  onClick={notAvailable}
-                  className="underline underline-offset-2 hover:text-primary-700"
-                >
+                <Link to="/forgot-password" className="underline underline-offset-2 hover:text-primary-700">
                   Lupa Password
-                </button>
+                </Link>
               </div>
             )}
 
@@ -193,23 +287,26 @@ function LoginPage() {
               {isSubmitting ? 'Memproses...' : 'Masuk'}
             </Button>
           </form>
+          <Link to="/verify-email" className="mt-3 block text-center text-xs text-primary-600 hover:underline">
+            Belum menerima email verifikasi?
+          </Link>
 
           {SHOW_EXTRAS && (
             <>
-              <button
-                type="button"
-                onClick={notAvailable}
-                className="mt-3 flex h-11 w-full items-center justify-center gap-3 rounded-lg bg-primary-50 text-sm text-gray-800 transition hover:bg-primary-100"
-              >
-                <GoogleIcon />
-                Masuk dengan Akun Google
-              </button>
+              <div className="mt-4">
+                <GoogleSignInButton
+                  onCredential={onGoogleCredential}
+                  onError={(message) => toast.error(message)}
+                  disabled={googlePending || isSubmitting}
+                  text="signin_with"
+                />
+              </div>
 
               <p className="mt-6 text-center text-xs text-gray-500">
                 Kamu belum punya akun?{' '}
                 <button
                   type="button"
-                  onClick={notAvailable}
+                  onClick={() => navigate('/register')}
                   className="font-semibold text-primary-600 hover:underline"
                 >
                   Daftar disini ya!

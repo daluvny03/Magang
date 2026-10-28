@@ -1,3 +1,7 @@
+import { isUserEmailConflict } from '../utils/email.js';
+import { withVerificationTransaction } from '../repositories/email-verification.repository.js';
+import { queueVerification } from './email-verification.service.js';
+import { getEmailConfig } from '../email/email-config.js';
 import bcrypt from 'bcryptjs';
 
 import {
@@ -26,14 +30,19 @@ export const registerUser = async ({
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const user = await createUser({
-    name,
-    email,
-    passwordHash,
-    role: 'user'
-  });
-
-  return user;
+  getEmailConfig();
+  try {
+    return await withVerificationTransaction(async (client) => {
+      const user = await createUser({ name, email, passwordHash, role: 'user' }, client);
+      await queueVerification(client, user);
+      return user;
+    });
+  } catch (error) {
+    if (isUserEmailConflict(error)) {
+      throw new AppError('Email is already registered', 409, 'EMAIL_ALREADY_REGISTERED');
+    }
+    throw error;
+  }
 };
 
 export const loginUser = async ({
@@ -42,7 +51,7 @@ export const loginUser = async ({
 }) => {
   const user = await findUserByEmail(email);
 
-  if (!user || user.is_active !== true) {
+  if (!user || user.is_active !== true || typeof user.password !== 'string' || !user.password) {
     throw new AppError(
       'Invalid email or password',
       401,
@@ -61,6 +70,10 @@ export const loginUser = async ({
       401,
       'INVALID_CREDENTIALS'
     );
+  }
+
+  if (user.email_verification_required && !user.email_verified_at) {
+    throw new AppError('Verifikasi email Anda sebelum masuk.', 403, 'EMAIL_NOT_VERIFIED');
   }
 
   const accessToken = generateAccessToken(user);

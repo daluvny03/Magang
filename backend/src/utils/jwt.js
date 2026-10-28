@@ -5,7 +5,8 @@ export const generateAccessToken = (user) => {
   return jwt.sign(
     {
       sub: user.id,
-      role: user.role
+      role: user.role,
+      authVersion: user.auth_version ?? 0
     },
     env.jwt.accessSecret,
     {

@@ -30,7 +30,9 @@ export const authenticate = async (req, res, next) => {
 
     payload = verifyAccessToken(token);
     if (typeof payload?.sub !== 'string' || !USER_ID_PATTERN.test(payload.sub) ||
-        !['admin', 'user'].includes(payload.role)) {
+        !['admin', 'user'].includes(payload.role) ||
+        (!Number.isSafeInteger(payload.authVersion) ||
+          payload.authVersion < 0)) {
       throw new AppError('Invalid token claims', 401, 'INVALID_TOKEN');
     }
   } catch (error) {
@@ -48,8 +50,12 @@ export const authenticate = async (req, res, next) => {
   }
   try {
     const user = await findUserForAuthentication(payload.sub);
-    if (!user || user.is_active !== true || user.role !== payload.role) {
+    if (!user || user.is_active !== true || user.role !== payload.role ||
+        payload.authVersion !== user.auth_version) {
       return next(new AppError('Session is no longer valid', 401, 'SESSION_INVALID'));
+    }
+    if (user.email_verification_required && !user.email_verified_at) {
+      return next(new AppError('Verifikasi email Anda sebelum masuk.', 403, 'EMAIL_NOT_VERIFIED'));
     }
     req.user = { id: user.id, role: user.role };
     return next();

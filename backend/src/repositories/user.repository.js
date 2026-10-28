@@ -1,3 +1,4 @@
+import { normalizeEmail } from '../utils/email.js';
 import { pool } from '../config/database.js';
 import { createUserModel } from '../models/user.model.js';
 
@@ -10,14 +11,17 @@ export const findUserByEmail = async (email) => {
       password,
       role,
       is_active,
+      email_verified_at,
+      email_verification_required,
+      auth_version,
       created_at,
       updated_at
     FROM users
-    WHERE email = $1
+    WHERE public.normalize_user_email(email) = public.normalize_user_email($1)
     LIMIT 1
   `;
 
-  const { rows } = await pool.query(query, [email]);
+  const { rows } = await pool.query(query, [normalizeEmail(email)]);
 
   if (!rows[0]) {
     return null;
@@ -28,7 +32,7 @@ export const findUserByEmail = async (email) => {
 
 export const findUserForAuthentication = async (id) => {
   const { rows } = await pool.query(
-    'SELECT id, role, is_active FROM users WHERE id = $1 LIMIT 1',
+    'SELECT id, role, is_active, email_verified_at, email_verification_required, auth_version FROM users WHERE id = $1 LIMIT 1',
     [id]
   );
   return rows[0] ?? null;
@@ -68,33 +72,37 @@ export const createUser = async ({
   name,
   email,
   passwordHash,
-  role = 'user'
-}) => {
+  role = 'user',
+  emailVerifiedAt = null
+}, client = pool) => {
   const query = `
     INSERT INTO users (
       name,
       email,
       password,
-      role
+      role,
+      email_verified_at
     )
-    VALUES ($1, $2, $3, $4)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING
       id,
       name,
       email,
       role,
+      auth_version,
       created_at,
       updated_at
   `;
 
   const values = [
     name,
-    email,
+    normalizeEmail(email),
     passwordHash,
-    role
+    role,
+    emailVerifiedAt
   ];
 
-  const { rows } = await pool.query(query, values);
+  const { rows } = await client.query(query, values);
 
   return createUserModel({
     id: rows[0].id,
