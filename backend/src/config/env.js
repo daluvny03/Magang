@@ -11,7 +11,14 @@ const requiredEnv = [
   'JWT_ACCESS_SECRET',
   'JWT_REFRESH_SECRET'
 ];
+const googleClientId = process.env.GOOGLE_CLIENT_ID?.trim();
 
+if (
+  googleClientId &&
+  !/^[0-9]+-[a-zA-Z0-9_-]+\.apps\.googleusercontent\.com$/.test(googleClientId)
+) {
+  throw new Error('GOOGLE_CLIENT_ID has an invalid format');
+}
 for (const envName of requiredEnv) {
   if (!process.env[envName]) {
     throw new Error(`Environment variable ${envName} is required`);
@@ -40,6 +47,25 @@ export const env = {
     refreshSecret: process.env.JWT_REFRESH_SECRET,
     accessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d'
+  },
+  google: {
+    clientId: googleClientId || null,
+  },
+
+  email: {
+    enabled: process.env.EMAIL_ENABLED === 'true',
+    provider: process.env.EMAIL_PROVIDER || 'resend',
+    smtp: {
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: Number(process.env.SMTP_PORT || 465),
+      secure: process.env.SMTP_SECURE === undefined ? true : process.env.SMTP_SECURE === 'true',
+      secureValid: process.env.SMTP_SECURE === undefined || ['true', 'false'].includes(process.env.SMTP_SECURE),
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+    apiKey: process.env.RESEND_API_KEY,
+    from: process.env.EMAIL_FROM,
+    encryptionKey: process.env.EMAIL_OUTBOX_ENCRYPTION_KEY,
   },
 
   doku: {
