@@ -1,5 +1,6 @@
 
 import { pool } from '../../config/database.js';
+import { queueSubscriptionActivated } from '../../repositories/subscription-email.repository.js';
 
 import {
   findCurrentPremiumSubscriptionForUpdate,
@@ -13,7 +14,7 @@ import {
 } from '../repositories/payment.repository.js';
 
 import {
-  addCalendarYears
+  addSubscriptionDuration
 } from '../utils/subscription-duration.js';
 
 const createError = (message, statusCode = 400) => {
@@ -77,7 +78,7 @@ export const applyVerifiedPremiumPayment = async (
     // Lock user terlebih dahulu agar urutan lock konsisten.
     const userLock = await client.query(
       `
-        SELECT id
+        SELECT id, email
         FROM users
         WHERE id = $1
         FOR UPDATE
@@ -115,9 +116,22 @@ export const applyVerifiedPremiumPayment = async (
       };
     }
 
+    const durationValue = Number(
+      payment.duration_value
+    );
+
+    const durationUnit = payment.duration_unit;
+
+    const allowedUnits = [
+      'day',
+      'month',
+      'year'
+    ];
+
     if (
-      Number(payment.duration_value) !== 1 ||
-      payment.duration_unit !== 'year' ||
+      !Number.isSafeInteger(durationValue) ||
+      durationValue <= 0 ||
+      !allowedUnits.includes(durationUnit) ||
       payment.currency !== 'IDR'
     ) {
       throw createError(
@@ -128,7 +142,7 @@ export const applyVerifiedPremiumPayment = async (
 
     const tierResult = await client.query(
       `
-        SELECT id
+        SELECT id, name
         FROM subscription_tiers
         WHERE id = $1
           AND slug = 'premium'
@@ -162,15 +176,17 @@ export const applyVerifiedPremiumPayment = async (
 
     let subscription;
     let action;
+    let expiration;
 
     if (currentSubscription) {
       const previousExpiration = parseUtcTimestamp(
         currentSubscription.expired_at_utc
       );
 
-      const newExpiration = addCalendarYears(
+      const newExpiration = addSubscriptionDuration(
         previousExpiration,
-        1
+        durationValue,
+        durationUnit
       );
 
       subscription = await renewPremiumSubscription(
@@ -179,11 +195,13 @@ export const applyVerifiedPremiumPayment = async (
         client
       );
 
+      expiration = newExpiration;
       action = 'renewed';
     } else {
-      const expiredAt = addCalendarYears(
+      const expiredAt = addSubscriptionDuration(
         activatedAt,
-        1
+        durationValue,
+        durationUnit
       );
 
       subscription = await createPremiumSubscription(
@@ -196,6 +214,7 @@ export const applyVerifiedPremiumPayment = async (
         client
       );
 
+      expiration = expiredAt;
       action = 'activated';
     }
 
@@ -218,6 +237,12 @@ export const applyVerifiedPremiumPayment = async (
         500
       );
     }
+
+    await queueSubscriptionActivated(client, {
+      user: userLock.rows[0], paymentId: payment.id,
+      snapshot: { subscriptionId: String(subscription.id), tierName: tierResult.rows[0].name,
+        action, activatedAt: activatedAt.toISOString(), expiredAt: expiration.toISOString() },
+    });
 
     await client.query('COMMIT');
 
