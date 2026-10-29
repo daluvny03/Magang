@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useId } from 'react'
+import { useModalFocus } from '../../hooks/useModalFocus'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
@@ -22,11 +23,8 @@ function Modal({
   footer,
   children,
 }) {
-  const closeRef = useRef(onClose)
-
-  useEffect(() => {
-    closeRef.current = onClose
-  })
+  const dialogRef = useModalFocus(onClose, !onClose, isOpen)
+  const titleId = useId()
 
   useEffect(() => {
     if (!isOpen) return
@@ -35,17 +33,9 @@ function Modal({
     openModals.push(token)
     document.body.style.overflow = 'hidden'
 
-    const handleKey = (e) => {
-      if (e.key === 'Escape' && openModals[openModals.length - 1] === token) {
-        closeRef.current?.()
-      }
-    }
-    document.addEventListener('keydown', handleKey)
-
     return () => {
       openModals.splice(openModals.indexOf(token), 1)
       if (openModals.length === 0) document.body.style.overflow = ''
-      document.removeEventListener('keydown', handleKey)
     }
   }, [isOpen])
 
@@ -61,13 +51,16 @@ function Modal({
       />
 
       <div
+        ref={dialogRef}
+        tabIndex={-1}
+        aria-labelledby={titleId}
         role="dialog"
         aria-modal="true"
         className={`relative flex max-h-[90vh] w-full flex-col rounded-xl bg-white shadow-xl ${sizes[size]}`}
       >
         <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4">
           <div>
-            <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+            <h2 id={titleId} className="text-base font-semibold text-gray-900">{title}</h2>
             {description && (
               <p className="mt-0.5 text-xs text-gray-500">{description}</p>
             )}

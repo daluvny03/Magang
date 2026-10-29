@@ -1,3 +1,4 @@
+import { useModalFocus } from '../../../hooks/useModalFocus'
 import { AlertTriangle, X } from 'lucide-react'
 
 function FinishConfirmModal({
@@ -9,13 +10,22 @@ function FinishConfirmModal({
     onClose,
     onConfirm,
 }) {
+    const dialogRef = useModalFocus(onClose, isSubmitting, isOpen)
+
     if (!isOpen) {
         return null
     }
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+            <div
+                ref={dialogRef}
+                tabIndex={-1}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="finish-confirm-title"
+                className="w-full max-w-md rounded-2xl bg-white shadow-xl"
+            >
                 <div className="flex items-start justify-between border-b border-gray-100 p-5">
                     <div className="flex gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-50">
@@ -23,7 +33,7 @@ function FinishConfirmModal({
                         </div>
 
                         <div>
-                            <h2 className="font-bold text-gray-900">
+                            <h2 id="finish-confirm-title" className="font-bold text-gray-900">
                                 Selesaikan Tryout?
                             </h2>
 
@@ -37,6 +47,7 @@ function FinishConfirmModal({
                         type="button"
                         disabled={isSubmitting}
                         onClick={onClose}
+                        aria-label="Tutup konfirmasi"
                         className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed"
                     >
                         <X className="h-5 w-5" />

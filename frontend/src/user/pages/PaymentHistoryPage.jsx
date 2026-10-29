@@ -1,3 +1,4 @@
+import { useModalFocus } from '../../hooks/useModalFocus'
 
 import { useState } from 'react'
 import {
@@ -97,6 +98,11 @@ function PaymentHistoryPage() {
   const [page, setPage] = useState(1)
   const [selectedPayment, setSelectedPayment] =
     useState(null)
+  const dialogRef = useModalFocus(
+    () => setSelectedPayment(null),
+    false,
+    Boolean(selectedPayment)
+  )
 
   const {
     data,
@@ -332,6 +338,8 @@ function PaymentHistoryPage() {
       {selectedPayment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div
+            ref={dialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="payment-detail-title"
