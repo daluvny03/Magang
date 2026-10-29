@@ -1,3 +1,5 @@
+import { checkoutEmailSchema } from '../validators/payment.validator.js'
+
 // Versi 1 harus tetap stabil: PostgreSQL JSONB tidak mempertahankan urutan key.
 const canonicalize = (value) => {
   if (Array.isArray(value)) return value.map(canonicalize)
@@ -12,18 +14,29 @@ const canonicalize = (value) => {
 export const serializeCheckoutBody = (body) =>
   JSON.stringify(canonicalize(body))
 
-export const buildCheckoutSnapshot = ({ invoiceNumber, amount, config }) => ({
-  version: 1,
-  environment: config.environment,
-  clientId: config.clientId,
-  body: {
-    order: { invoice_number: invoiceNumber, amount: Number(amount) },
-    payment: {
-      payment_due_date: config.checkoutDueMinutes,
-      payment_method_types: [...config.paymentMethodTypes],
+export const buildCheckoutSnapshot = ({ invoiceNumber, amount, customerEmail, config }) => {
+  const { error, value: email } = checkoutEmailSchema.validate(customerEmail)
+  if (error) {
+    const validationError = new Error('A valid account email is required to create checkout')
+    validationError.statusCode = 400
+    validationError.code = 'CHECKOUT_EMAIL_INVALID'
+    throw validationError
+  }
+
+  return {
+    version: 1,
+    environment: config.environment,
+    clientId: config.clientId,
+    body: {
+      customer: { email },
+      order: { invoice_number: invoiceNumber, amount: Number(amount) },
+      payment: {
+        payment_due_date: config.checkoutDueMinutes,
+        payment_method_types: [...config.paymentMethodTypes],
+      },
     },
-  },
-})
+  }
+}
 
 export const validateCheckoutAccount = (snapshot, config) => {
   if (

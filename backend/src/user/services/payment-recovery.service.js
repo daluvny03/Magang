@@ -251,15 +251,6 @@ export const reconcileDokuPayment = async (
         paymentVerified: false,
       }
     }
-
-    console.error('DOKU recovery unresolved:', {
-      paymentId,
-      inquiryCode: inquiryError.code,
-      inquiryHttpStatus: inquiryError.httpStatus,
-      replayCode: replayError?.code,
-      replayHttpStatus: replayError?.httpStatus,
-    })
-
     throw inquiryError
   }
 

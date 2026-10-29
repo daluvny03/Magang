@@ -57,7 +57,6 @@ export const createDokuCheckout = async ({
     requestTarget: CHECKOUT_TARGET,
     rawBody,
   })
-
   try {
     const response = await axios.post(
       `${doku.baseUrl.replace(/\/$/, '')}${CHECKOUT_TARGET}`,

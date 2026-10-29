@@ -86,7 +86,7 @@ export const createPayment = async ({
     // Serialisasi checkout untuk user yang sama.
     const userResult = await client.query(
       `
-        SELECT id
+        SELECT id, email
         FROM users
         WHERE id = $1
           AND is_active = true
@@ -128,12 +128,23 @@ export const createPayment = async ({
       throw error;
     }
 
+    const price = Number(tier.price);
+    const durationValue = Number(tier.duration_value);
+    const durationUnit = tier.duration_unit;
+
+    const allowedDurationUnits = [
+      'day',
+      'month',
+      'year'
+    ];
+
     if (
-      !Number.isSafeInteger(Number(tier.price)) ||
-      Number(tier.price) <= 0 ||
-      Number(tier.price) > 999999999999 ||
-      Number(tier.duration_value) !== 1 ||
-      tier.duration_unit !== 'year'
+      !Number.isSafeInteger(price) ||
+      price <= 0 ||
+      price > 999999999999 ||
+      !Number.isSafeInteger(durationValue) ||
+      durationValue <= 0 ||
+      !allowedDurationUnits.includes(durationUnit)
     ) {
       const error = new Error(
         'Invalid Premium configuration'
@@ -173,6 +184,7 @@ export const createPayment = async ({
         JSON.stringify(buildCheckoutSnapshot({
           invoiceNumber,
           amount: tier.price,
+          customerEmail: userResult.rows[0].email,
           config: checkoutConfig
         }))
       ]

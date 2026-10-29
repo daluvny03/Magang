@@ -31,5 +31,18 @@ cat_cpns_complete_bundle/
 backend/scripts/
 backend/docs/
 backend/tests/*
+backend/test/*
+backend/migrations/*
 backend/sql/
 frontend/tests/
+*.md
+# Keep Google authentication regression tooling reviewable.
+!backend/scripts/
+backend/scripts/*
+!backend/scripts/test-auth-isolated.sh
+!backend/test/google-auth-cases.js
+!backend/test/google-auth-results.md
+!backend/migrations/1793000006000_case-insensitive-user-email.cjs
+!backend/test/email-uniqueness-cases.js
+!backend/test/email-uniqueness.test.js
+!backend/test/email-uniqueness-results.md

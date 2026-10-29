@@ -1,6 +1,8 @@
 
 import Joi from 'joi';
 
+export const checkoutEmailSchema = Joi.string().trim().email().max(255).required();
+
 export const createCheckoutSchema = Joi.object({})
   .unknown(false);
 
