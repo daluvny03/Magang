@@ -7,8 +7,17 @@ const keyFor = (kind, value) => `${kind}:${createHash('sha256').update(value).di
 
 export const limitLoginAttempts = async (req, res, next) => {
   // req.ip memakai kebijakan trust proxy Express; tidak mempercayai header IP mentah.
-  const keys = [keyFor('ip', req.ip ?? req.socket.remoteAddress ?? 'unknown'),
-    keyFor('account', req.body.email)];
+  const keys = [
+    keyFor(
+      'ip',
+      req.ip ?? req.socket.remoteAddress ?? 'unknown'
+    )
+  ];
+  if (typeof req.body?.email === 'string' && req.body.email.trim()) {
+    keys.push(
+      keyFor('account', req.body.email.trim().toLowerCase())
+    );
+  }
   try {
     const { rows } = await pool.query({
       text: `
