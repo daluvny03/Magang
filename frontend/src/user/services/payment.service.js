@@ -1,8 +1,13 @@
 
 import api from '../../services/api'
 
-export const createPremiumCheckout = async () => {
-  const response = await api.post('/user/payments/checkout', {})
+export const createSubscriptionCheckout = async (
+  subscriptionTierId
+) => {
+  const response = await api.post(
+    '/user/payments/checkout',
+    { subscriptionTierId: String(subscriptionTierId) }
+  )
 
   return response.data
 }

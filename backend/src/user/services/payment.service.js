@@ -12,7 +12,7 @@ import { createDokuCheckout } from '../clients/doku-checkout-client.js'
 import { parseDokuExpiredDate } from '../utils/doku-date.js'
 import { validateDokuConfig } from '../utils/doku-config.js'
 import { reconcileDokuPayment } from './payment-recovery.service.js'
-import { applyVerifiedPremiumPayment } from './subscription-lifecycle.service.js'
+import { applyVerifiedSubscriptionPayment } from './subscription-lifecycle.service.js'
 
 
 const generateInvoiceNumber = () => {
@@ -22,6 +22,7 @@ const generateInvoiceNumber = () => {
 
 const mapPayment = (row) => ({
   id: String(row.id),
+  subscriptionTierId: String(row.subscription_tier_id),
   invoiceNumber: row.invoice_number,
   amount: Number(row.amount),
   currency: row.currency,
@@ -34,10 +35,16 @@ const mapPayment = (row) => ({
   expiredAt: row.expired_at,
   paidAt: row.paid_at,
   appliedAt: row.applied_at,
-  createdAt: row.created_at
+  createdAt: row.created_at,
+  applicationReviewStatus: row.application_review_status,
+  applicationReviewReason: row.application_review_reason,
 });
 
-export const createPremiumCheckout = async (userId, replaceExpired = true) => {
+export const createSubscriptionCheckout = async (
+  userId,
+  subscriptionTierId,
+  replaceExpired = true
+) => {
   // Kegagalan konfigurasi lokal tidak boleh membuat transaksi reconciling.
   const checkoutConfig = validateDokuConfig({ checkout: true });
   // Identitas dibuat oleh backend, bukan frontend.
@@ -46,17 +53,15 @@ export const createPremiumCheckout = async (userId, replaceExpired = true) => {
 
   const created = await createPayment({
     userId,
+    subscriptionTierId,
     invoiceNumber,
     dokuRequestId,
-    checkoutConfig
+    checkoutConfig,
   });
 
   const payment = created.payment ?? created;
 
   if (payment.status !== 'initiating') {
-    // A user-requested checkout can recover an existing uncertain request even
-    // when the background scheduler is disabled. Recovery owns the SQL claim,
-    // cooldown, inquiry-first policy and immutable invoice/request/body replay.
     if (['pending', 'reconciling'].includes(payment.status) &&
         !payment.paid_at && !payment.applied_at) {
       let checked = false
@@ -74,13 +79,13 @@ export const createPremiumCheckout = async (userId, replaceExpired = true) => {
           providerDiagnostic: error.providerDiagnostic,
         })
       }
-      // Inquiry may have failed before replay successfully recovered the URL.
-      // Always return the latest persisted state, never the stale pre-recovery row.
       const latest = await findPaymentByIdAndUserId(payment.id, userId)
-      // Only a provider-verified order expiry releases the open-payment slot.
-      // A second create still uses the repository's per-user lock/unique index.
       if (latest.status === 'expired' && checked && replaceExpired) {
-        return createPremiumCheckout(userId, false)
+        return createSubscriptionCheckout(
+          userId,
+          subscriptionTierId,
+          false
+        )
       }
       const mapped = mapPayment(latest)
       if (!checked) mapped.paymentUrl = null // Never reopen a stale URL after inquiry failure.
@@ -181,10 +186,12 @@ export const getUserPaymentById = async (
 
   // Ownership is checked before any provider request or subscription mutation.
   if ((['initiating', 'pending', 'reconciling'].includes(payment.status) ||
-      (payment.status === 'paid' && !payment.applied_at)) &&
+      (payment.status === 'paid' &&
+        !payment.applied_at &&
+        payment.application_review_status === 'none')) &&
       await claimPaymentStatusRefresh(payment.id)) {
     try {
-      if (payment.status === 'paid') await applyVerifiedPremiumPayment(payment.id)
+      if (payment.status === 'paid') await applyVerifiedSubscriptionPayment(payment.id)
       else await reconcileDokuPayment(payment.id, { allowReplay: false })
     } catch (error) {
       console.error('Payment status refresh unresolved:', {

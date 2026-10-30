@@ -7,7 +7,7 @@ import {
 } from '../hooks/useSubscription'
 import { useState, useEffect, useRef } from 'react'
 import {
-    useCreatePremiumCheckout,
+    useCreateSubscriptionCheckout,
     usePaymentDetail,
 } from '../hooks/usePayment'
 import { openDokuCheckout, closeDokuCheckout } from '../utils/doku-checkout'
@@ -33,7 +33,7 @@ function SubscriptionPage() {
 function SubscriptionContent({ userId }) {
     const navigate = useNavigate()
     const redirectedPaymentRef = useRef(null)
-    const checkoutMutation = useCreatePremiumCheckout()
+    const checkoutMutation = useCreateSubscriptionCheckout()
     const [checkoutError, setCheckoutError] = useState(null)
     const [storageWarning, setStorageWarning] = useState(null)
     const mounted = useRef(false)
@@ -58,44 +58,40 @@ function SubscriptionContent({ userId }) {
     const payment = paymentQuery.data?.data
 
     useEffect(() => {
-        if (!paymentId || (payment?.status !== 'paid' && !payment?.appliedAt)) return
+        if (!paymentId || !payment?.appliedAt) return
         if (redirectedPaymentRef.current === paymentId) return
 
-        // Pastikan respons masih milik sesi user aktif.
         const auth = useAuthStore.getState()
-
         if (!mounted.current || !userId) return
         if (String(auth.user?.id) !== String(userId)) return
-
         redirectedPaymentRef.current = paymentId
 
-        // Bersihkan tracking transaksi pada browser.
         if (paymentStorageKey) {
             try {
                 sessionStorage.removeItem(paymentStorageKey)
             } catch {
-                // Gagal membersihkan storage tidak membatalkan pembayaran.
+                // Kegagalan storage tidak mengubah status payment.
             }
         }
-
-        // Tutup DOKU modal dan bersihkan listener.
         closeDokuCheckout()
-
-        // Arahkan user ke halaman konfirmasi.
+        queryClient.invalidateQueries({
+            queryKey: ['subscription-catalog'],
+        })
         navigate(
             `/user/payment/success?paymentId=${encodeURIComponent(paymentId)}`,
             { replace: true }
         )
     }, [
         paymentId,
-        payment?.status,
         payment?.appliedAt,
         paymentStorageKey,
         userId,
         navigate,
+        queryClient,
     ])
 
-    const handleCheckout = async () => {
+    const handleCheckout = async (tier) => {
+        if (!tier?.isPurchasable || !tier?.id) return
         if (!userId || checkoutInFlight.current) return
         checkoutInFlight.current = true
         closeDokuCheckout()
@@ -108,7 +104,9 @@ function SubscriptionContent({ userId }) {
         setStorageWarning(null)
 
         try {
-            const response = await checkoutMutation.mutateAsync()
+            const response = await checkoutMutation.mutateAsync(
+                String(tier.id)
+            )
             if (!isCurrentSession()) return
 
             const payment = response?.data
@@ -126,9 +124,18 @@ function SubscriptionContent({ userId }) {
                 )
             }
 
-            if (payment.status === 'paid' || payment.appliedAt) {
+            if (payment.appliedAt) {
                 setCheckoutError(
-                    'Pembayaran sudah tercatat. Silakan periksa status langganan.'
+                    'Subscription sudah berhasil diaktifkan. Mengarahkan ke halaman konfirmasi.'
+                )
+                return
+            }
+
+            if (payment.status === 'paid') {
+                setCheckoutError(
+                    payment.applicationReviewStatus === 'needs_review'
+                        ? 'Pembayaran diterima, tetapi aktivasi subscription memerlukan pemeriksaan.'
+                        : 'Pembayaran diterima. Aktivasi subscription sedang diproses.'
                 )
                 return
             }
@@ -183,9 +190,10 @@ function SubscriptionContent({ userId }) {
     const tiers = catalogQuery.data?.data ?? []
     const subscription = subscriptionQuery.data?.data ?? null
 
-    const hasActivePremium =
+    const hasActivePaidSubscription =
         subscription?.status === 'active' &&
-        subscription?.tier?.slug === 'premium'
+        subscription?.tier?.slug !== 'free' &&
+        Boolean(subscription?.tier)
 
     return (
         <div className="mx-auto max-w-5xl p-6">
@@ -203,10 +211,10 @@ function SubscriptionContent({ userId }) {
                     Langganan Saya
                 </h2>
 
-                {hasActivePremium ? (
+                {hasActivePaidSubscription ? (
                     <div className="mt-3 space-y-2 text-sm">
                         <p className="font-medium text-blue-600">
-                            Premium Aktif
+                            {subscription.tier.name} Aktif
                         </p>
                         <p>
                             Tanggal aktivasi:{' '}
@@ -234,16 +242,20 @@ function SubscriptionContent({ userId }) {
                         <SubscriptionCard
                             key={tier.id}
                             tier={tier}
-                            hasActivePremium={hasActivePremium}
                             isCurrentPlan={
-                                hasActivePremium
-                                    ? tier.slug === 'premium'
+                                hasActivePaidSubscription
+                                    ? String(subscription.tier.id) ===
+                                    String(tier.id)
                                     : tier.slug === 'free'
                             }
-
-                            onCheckout={tier.slug === 'premium' ? handleCheckout : undefined}
-                            isCheckoutLoading={checkoutMutation.isPending || isOpeningCheckout}
-
+                            purchaseAction={tier.purchaseAction}
+                            isPurchasable={tier.isPurchasable}
+                            purchaseBlockReason={tier.purchaseBlockReason}
+                            onCheckout={() => handleCheckout(tier)}
+                            isCheckoutLoading={
+                                checkoutMutation.isPending ||
+                                isOpeningCheckout
+                            }
                         />
                     ))}
                 </div>
@@ -254,6 +266,30 @@ function SubscriptionContent({ userId }) {
                     {storageWarning}
                 </p>
             )}
+
+            {payment?.status === 'paid' &&
+                !payment?.appliedAt &&
+                payment?.applicationReviewStatus === 'needs_review' && (
+                    <div
+                        role="alert"
+                        className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4"
+                    >
+                        <p className="text-sm font-semibold text-amber-900">
+                            Pembayaran diterima, aktivasi perlu pemeriksaan
+                        </p>
+
+                        <p className="mt-2 text-sm text-amber-800">
+                            Pembayaran kamu sudah diterima, tetapi subscription
+                            belum dapat diaktifkan secara otomatis.
+                            Simpan nomor transaksi dan hubungi administrator
+                            untuk pemeriksaan lebih lanjut.
+                        </p>
+
+                        <p className="mt-2 text-xs text-amber-800">
+                            ID Pembayaran: {paymentId}
+                        </p>
+                    </div>
+                )}
 
             {checkoutError && (
                 <div

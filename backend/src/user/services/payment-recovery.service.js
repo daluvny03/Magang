@@ -28,7 +28,7 @@ import {
 } from '../repositories/payment.repository.js'
 
 import {
-  applyVerifiedPremiumPayment,
+  applyVerifiedSubscriptionPayment,
 } from './subscription-lifecycle.service.js'
 
 import {
@@ -63,7 +63,7 @@ export const recoverUnappliedPremiumPayments = async (db = recoveryPool, { shoul
   for (const payment of payments) {
     if (shouldStop()) break
     try {
-      const result = await applyVerifiedPremiumPayment(
+      const result = await applyVerifiedSubscriptionPayment(
         payment.id,
         db
       )
@@ -216,11 +216,12 @@ export const reconcileDokuPayment = async (
 
           replayStage = 'persist_checkout'
 
-          await saveDokuCheckoutResult({
+          const recoveredCheckout = await saveDokuCheckoutResult({
             paymentId,
             paymentUrl: checkout.paymentUrl,
             expiredAt: parseDokuExpiredDate(checkout.expiredDate),
           }, db)
+          checkoutRecovered = Boolean(recoveredCheckout)
         }
       } catch (error) {
         replayError = error
@@ -344,7 +345,7 @@ export const reconcileDokuPayment = async (
     client.release(transactionFailed)
   }
 
-  const application = await applyVerifiedPremiumPayment(
+  const application = await applyVerifiedSubscriptionPayment(
     paymentId,
     db
   )

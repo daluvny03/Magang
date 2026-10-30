@@ -6,13 +6,13 @@ import {
 import { useAuthStore } from '../../stores/authStore'
 
 import {
-  createPremiumCheckout,
+  createSubscriptionCheckout,
   getPaymentDetail,
 } from '../services/payment.service'
 
-export const useCreatePremiumCheckout = () => {
+export const useCreateSubscriptionCheckout = () => {
   return useMutation({
-    mutationFn: createPremiumCheckout,
+    mutationFn: createSubscriptionCheckout,
   })
 }
 
@@ -26,24 +26,26 @@ export const usePaymentDetail = (paymentId) => {
 
     refetchInterval: (query) => {
       if (!paymentId) return false
-
       const payment = query.state.data?.data
-
       if (!payment) return 10000
-
+      // Subscription telah berhasil diterapkan.
       if (payment.appliedAt) return false
-
+      // Pembayaran sudah membutuhkan penanganan operator.
       if (
-        payment.status === 'initiating' ||
-        payment.status === 'reconciling' ||
-        payment.status === 'pending' ||
-        payment.status === 'paid'
+        payment.applicationReviewStatus === 'needs_review' ||
+        payment.applicationReviewStatus === 'resolved'
+      ) {
+        return false
+      }
+      if (
+        ['initiating', 'reconciling', 'pending', 'paid']
+          .includes(payment.status)
       ) {
         return 3000
       }
-
       return false
     },
+
   })
 }
 

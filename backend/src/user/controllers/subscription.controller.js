@@ -30,7 +30,7 @@ export const getAvailableSubscriptionCatalog = async (
   next
 ) => {
   try {
-    const tiers = await getSubscriptionCatalog();
+    const tiers = await getSubscriptionCatalog(req.user.id);
 
     return res.status(200).json({
       success: true,

@@ -13,7 +13,7 @@ import { markPaymentPaid, saveDokuTransactionId } from
 import { verifyDokuPaymentIdentity, parseDokuTransactionDate } from '../validators/doku-payment-evidence.validator.js'
 import { extractDokuTransactionId } from '../utils/doku-transaction-identifier.js'
 
-import { applyVerifiedPremiumPayment } from
+import { applyVerifiedSubscriptionPayment } from
   './subscription-lifecycle.service.js'
 
 
@@ -254,9 +254,36 @@ const processDokuEvent = async (eventId, db) => {
     client.release(recoveryTransactionFailed)
   }
 
-  // Lifecycle existing menjalankan transaksi sendiri.
-  // Jika gagal, payment tetap paid dan dapat diproses ulang.
-  const application = await applyVerifiedPremiumPayment(paymentId, db)
+  // Payment sudah committed sebelum lifecycle memulai transaksi sendiri.
+  let application
+  try {
+    application = await applyVerifiedSubscriptionPayment(paymentId, db)
+  } catch (error) {
+    const reviewCodes = [
+      'SUBSCRIPTION_ACTIVATION_CONFLICT',
+      'SUBSCRIPTION_UPGRADE_CONFLICT',
+      'PAYMENT_APPLICATION_REVIEW_REQUIRED',
+    ]
+    if (!reviewCodes.includes(error.code)) throw error
+
+    // ACK konflik bisnis hanya setelah review benar-benar tersimpan.
+    // Gagal mencatat review tetap memakai jalur retry/recovery existing.
+    const { rows } = await db.query(
+      `SELECT id FROM payments
+       WHERE id = $1
+         AND status = 'paid'
+         AND paid_at IS NOT NULL
+         AND applied_at IS NULL
+         AND application_review_status = 'needs_review'`,
+      [paymentId]
+    )
+    if (!rows[0]) throw error
+
+    application = {
+      action: 'needs_review',
+      paymentId: String(paymentId),
+    }
+  }
 
   await db.query(
     `

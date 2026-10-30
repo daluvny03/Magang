@@ -2,23 +2,134 @@
 import { pool } from '../../config/database.js';
 import { buildCheckoutSnapshot } from '../utils/doku-checkout-request.js';
 
-export const findPremiumTier = async (client = pool) => {
-  const { rows } = await client.query(`
-    SELECT
-      id,
-      name,
-      slug,
-      price,
-      duration_value,
-      duration_unit
-    FROM subscription_tiers
-    WHERE slug = 'premium'
-      AND is_active = true
-    LIMIT 1
-  `);
+const checkoutError = (message, statusCode, code) => {
+  const error = new Error(message)
+  error.statusCode = statusCode
+  error.code = code
+  return error
+}
 
-  return rows[0] || null;
-};
+const assertSubscriptionCheckoutAllowed = async (
+  userId,
+  targetTier,
+  client
+) => {
+  const { rows: activeSubscriptions } =
+    await client.query(
+      `
+        SELECT
+          us.subscription_tier_id,
+          st.level
+        FROM user_subscriptions us
+        INNER JOIN subscription_tiers st
+          ON st.id = us.subscription_tier_id
+        WHERE us.user_id = $1
+          AND us.status = 'active'
+          AND st.slug <> 'free'
+          AND us.started_at <=
+            (clock_timestamp() AT TIME ZONE 'UTC')
+          AND us.expired_at >
+            (clock_timestamp() AT TIME ZONE 'UTC')
+        ORDER BY us.id DESC
+        FOR UPDATE OF us
+      `,
+      [userId]
+    )
+
+  if (activeSubscriptions.length > 1) {
+    throw checkoutError(
+      'Multiple active subscriptions require review',
+      409,
+      'MULTIPLE_ACTIVE_SUBSCRIPTIONS'
+    )
+  }
+
+  const current = activeSubscriptions[0]
+
+  // Tidak ada subscription aktif:
+  // User bebas memilih tier berbayar yang tersedia.
+  if (!current) {
+    return 'new'
+  }
+
+  // Subscription sama: renewal.
+  if (
+    String(current.subscription_tier_id) ===
+    String(targetTier.id)
+  ) {
+    return 'renewal'
+  }
+
+  // Upgrade harus menuju level yang lebih tinggi.
+  if (Number(targetTier.level) <= Number(current.level)) {
+    throw checkoutError(
+      'Cannot switch or downgrade an active subscription',
+      409,
+      'SUBSCRIPTION_CHANGE_NOT_ALLOWED'
+    )
+  }
+
+  // Target harus mewarisi subscription saat ini,
+  // baik secara langsung maupun transitif.
+  const { rows } = await client.query(
+    `
+      WITH RECURSIVE inherited_tiers(tier_id) AS (
+        SELECT $1::bigint
+
+        UNION
+
+        SELECT sti.child_tier_id
+        FROM subscription_tier_inheritances sti
+        INNER JOIN inherited_tiers it
+          ON it.tier_id = sti.parent_tier_id
+      )
+      SELECT EXISTS (
+        SELECT 1
+        FROM inherited_tiers
+        WHERE tier_id = $2::bigint
+      ) AS allowed
+    `,
+    [
+      targetTier.id,
+      current.subscription_tier_id,
+    ]
+  )
+
+  if (!rows[0]?.allowed) {
+    throw checkoutError(
+      'Target subscription does not inherit the current tier',
+      409,
+      'SUBSCRIPTION_UPGRADE_NOT_ALLOWED'
+    )
+  }
+
+  return 'upgrade'
+}
+
+export const findCheckoutTierById = async (
+  subscriptionTierId,
+  client = pool
+) => {
+  const { rows } = await client.query(
+    `
+      SELECT
+        id,
+        name,
+        slug,
+        price,
+        duration_value,
+        duration_unit,
+        level
+      FROM subscription_tiers
+      WHERE id = $1
+        AND is_active = true
+      LIMIT 1
+    `,
+    [subscriptionTierId]
+  )
+
+  return rows[0] || null
+}
 
 export const findOpenPaymentByUserId = async (
   userId,
@@ -66,7 +177,7 @@ export const claimPaymentStatusRefresh = async (paymentId) => {
     UPDATE payments SET next_reconciliation_at = NOW() + INTERVAL '30 seconds'
     WHERE id = $1
       AND (status IN ('initiating', 'pending', 'reconciling')
-           OR (status = 'paid' AND applied_at IS NULL))
+           OR (status = 'paid' AND applied_at IS NULL AND application_review_status = 'none'))
       AND (next_reconciliation_at IS NULL OR next_reconciliation_at <= NOW())
   `, [paymentId])
   return rowCount === 1
@@ -74,9 +185,10 @@ export const claimPaymentStatusRefresh = async (paymentId) => {
 
 export const createPayment = async ({
   userId,
+  subscriptionTierId,
   invoiceNumber,
   dokuRequestId,
-  checkoutConfig
+  checkoutConfig,
 }) => {
   const client = await pool.connect();
 
@@ -109,24 +221,53 @@ export const createPayment = async ({
         userId,
         client
       );
-
+    
     if (existingPayment) {
-      await client.query('COMMIT');
+      if (
+        String(existingPayment.subscription_tier_id) !==
+        String(subscriptionTierId)
+      ) {
+        throw checkoutError(
+          'You already have an open checkout for another subscription',
+          409,
+          'OTHER_SUBSCRIPTION_CHECKOUT_OPEN'
+        )
+      }
+
+      await client.query('COMMIT')
+
       return {
         payment: existingPayment,
-        isExisting: true
-      };
+        isExisting: true,
+      }
     }
-
-    const tier = await findPremiumTier(client);
+    
+    const tier = await findCheckoutTierById(
+      subscriptionTierId,
+      client
+    )
 
     if (!tier) {
-      const error = new Error(
-        'Premium subscription is unavailable'
-      );
-      error.statusCode = 404;
-      throw error;
+      throw checkoutError(
+        'Subscription tier is unavailable',
+        404,
+        'SUBSCRIPTION_TIER_UNAVAILABLE'
+      )
     }
+
+    if (tier.slug === 'free') {
+      throw checkoutError(
+        'Free subscription cannot be purchased',
+        400,
+        'FREE_SUBSCRIPTION_CHECKOUT_NOT_ALLOWED'
+      )
+    }
+
+    await assertSubscriptionCheckoutAllowed(
+      userId,
+      tier,
+      client
+    )
 
     const price = Number(tier.price);
     const durationValue = Number(tier.duration_value);
@@ -147,7 +288,7 @@ export const createPayment = async ({
       !allowedDurationUnits.includes(durationUnit)
     ) {
       const error = new Error(
-        'Invalid Premium configuration'
+        'Invalid subscription tier configuration'
       );
       error.statusCode = 500;
       throw error;
@@ -288,6 +429,7 @@ export const markPaymentApplied = async (
         AND status = 'paid'
         AND paid_at IS NOT NULL
         AND applied_at IS NULL
+        AND application_review_status = 'none'
       RETURNING *
     `,
     [paymentId, appliedAt]
@@ -407,6 +549,7 @@ export const findUnappliedPaidPayments = async (
       WHERE status = 'paid'
         AND paid_at IS NOT NULL
         AND applied_at IS NULL
+        AND application_review_status = 'none'
         AND (
           next_reconciliation_at IS NULL
           OR next_reconciliation_at <= NOW()
@@ -443,7 +586,7 @@ export const scheduleNextPaymentReconciliation = async (
       WHERE id = $1
         AND (
             status IN ('initiating', 'pending', 'reconciling')
-            OR (status = 'paid' AND applied_at IS NULL)
+            OR (status = 'paid' AND applied_at IS NULL AND application_review_status = 'none')
         )
       RETURNING reconciliation_attempt_count
     `,
@@ -514,4 +657,34 @@ export const countPaymentHistoryByUserId = async (
   )
 
   return rows[0]?.total ?? 0
+}
+
+export const markPaymentApplicationNeedsReview = async (
+  paymentId,
+  reason,
+  client
+) => {
+  const { rows } = await client.query(
+    `
+      UPDATE payments
+      SET
+        application_review_status = 'needs_review',
+        application_review_reason = $2,
+        application_review_at = clock_timestamp(),
+        next_reconciliation_at = NULL,
+        updated_at = NOW()
+      WHERE id = $1
+        AND status = 'paid'
+        AND paid_at IS NOT NULL
+        AND applied_at IS NULL
+        AND application_review_status = 'none'
+      RETURNING
+        id,
+        application_review_status,
+        application_review_reason
+    `,
+    [paymentId, reason]
+  )
+
+  return rows[0] ?? null
 }
