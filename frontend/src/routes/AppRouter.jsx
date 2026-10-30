@@ -35,6 +35,7 @@ import AnswerReviewPage from '../user/pages/AnswerReviewPage'
 import LeaderboardPage from '../user/pages/LeaderboardPage'
 import StatisticsPage from '../user/pages/StatisticsPage'
 import PaymentHistoryPage from '../user/pages/PaymentHistoryPage'
+import SubscriptionPageAdmin from '../pages/admin/subscriptions/SubscriptionPage'
 
 function AppRouter() {
     return (
@@ -83,6 +84,10 @@ function AppRouter() {
                         <Route
                             path="users"
                             element={<UserPage />}
+                        />
+                        <Route
+                            path="subscriptions"
+                            element={<SubscriptionPageAdmin />}
                         />
                     </Route>
                 </Route>

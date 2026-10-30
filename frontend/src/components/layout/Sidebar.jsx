@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
   ChevronDown,
+  CreditCard,
   Database,
   FileQuestion,
   LayoutDashboard,
@@ -25,6 +26,11 @@ const navigation = [
           { label: 'Questions', path: '/admin/questions', icon: FileQuestion },
           { label: 'Tryout Packages', path: '/admin/tryout-packages', icon: Package },
           { label: 'Users', path: '/admin/users', icon: Users },
+          {
+            label: 'Subscription',
+            path: '/admin/subscriptions',
+            icon: CreditCard,
+          },
         ],
       },
     ],
@@ -49,11 +55,10 @@ function NavGroup({ item, onNavigate }) {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className={`${linkBase} w-full ${
-          open || hasActiveChild
+        className={`${linkBase} w-full ${open || hasActiveChild
             ? 'bg-primary-500 text-white'
             : 'text-gray-600 hover:bg-primary-50 hover:text-primary-700'
-        }`}
+          }`}
       >
         <Icon size={18} />
         <span className="flex-1 text-left">{item.label}</span>
@@ -73,10 +78,9 @@ function NavGroup({ item, onNavigate }) {
                 to={child.path}
                 onClick={onNavigate}
                 className={({ isActive }) =>
-                  `${linkBase} py-2 ${
-                    isActive
-                      ? 'bg-primary-50 text-primary-700'
-                      : 'text-gray-600 hover:bg-primary-50 hover:text-primary-700'
+                  `${linkBase} py-2 ${isActive
+                    ? 'bg-primary-50 text-primary-700'
+                    : 'text-gray-600 hover:bg-primary-50 hover:text-primary-700'
                   }`
                 }
               >
@@ -109,9 +113,8 @@ function Sidebar({ isOpen, onClose }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-gray-100 bg-white transition-transform duration-200 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-gray-100 bg-white transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
       >
         <div className="flex h-16 shrink-0 items-center justify-between px-5">
           <span className="text-xl font-bold text-primary-500">
@@ -154,10 +157,9 @@ function Sidebar({ isOpen, onClose }) {
                       to={item.path}
                       onClick={handleNavigate}
                       className={({ isActive }) =>
-                        `${linkBase} ${
-                          isActive
-                            ? 'bg-primary-500 text-white'
-                            : 'text-gray-600 hover:bg-primary-50 hover:text-primary-700'
+                        `${linkBase} ${isActive
+                          ? 'bg-primary-500 text-white'
+                          : 'text-gray-600 hover:bg-primary-50 hover:text-primary-700'
                         }`
                       }
                     >

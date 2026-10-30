@@ -9,9 +9,10 @@ import excelImportRoutes from './excel-import.routes.js';
 import tryoutPackageRoutes from './tryout-packages.routes.js';
 import subscriptionTierRoutes
   from './subscription-tier.routes.js';
-  import userManagementRoutes
+import userManagementRoutes
   from './user-management.routes.js';
-  import user from '../user/routes/index.js';
+import user from '../user/routes/index.js';
+import adminSubscriptionRoutes from './admin-subscription.routes.js';
 
 const router = Router();
 
@@ -37,6 +38,10 @@ router.use(
 router.use(
   '/user',
   user
+);
+router.use(
+  '/subscriptions',
+  adminSubscriptionRoutes
 );
 
 export default router;
