@@ -13,6 +13,8 @@ import {
 
 import { generateSlug } from '../utils/slug.js';
 import { AppError } from '../utils/app-error.js';
+import { pool } from '../config/database.js';
+import { lockCategoryScoring, guardCategoryScoringChange, categoryHasAttempts, categoryScoringConflict } from '../repositories/category-scoring-guard.repository.js';
 
 const normalizeName = (name) => {
   return name.trim();
@@ -39,14 +41,14 @@ const getParentLevel = async (parentId) => {
 const validateParentHierarchy = async ({
   categoryId,
   parentId
-}) => {
+}, client = pool) => {
   if (parentId === null || parentId === undefined) {
     return null;
   }
 
   if (
     categoryId &&
-    Number(categoryId) === Number(parentId)
+    String(categoryId) === String(parentId)
   ) {
     throw new AppError(
       'Category cannot be its own parent',
@@ -55,7 +57,7 @@ const validateParentHierarchy = async ({
     );
   }
 
-  const parent = await findCategoryById(parentId);
+  const parent = await findCategoryById(parentId, client);
 
   if (!parent) {
     throw new AppError(
@@ -70,7 +72,7 @@ const validateParentHierarchy = async ({
   while (currentParentId !== null) {
     if (
       categoryId &&
-      Number(currentParentId) === Number(categoryId)
+      String(currentParentId) === String(categoryId)
     ) {
       throw new AppError(
         'Category hierarchy cannot contain a cycle',
@@ -80,7 +82,7 @@ const validateParentHierarchy = async ({
     }
 
     const currentParent = await findCategoryById(
-      currentParentId
+      currentParentId, client
     );
 
     if (!currentParent) {
@@ -96,10 +98,10 @@ const validateParentHierarchy = async ({
 const validateUniqueSlug = async ({
   slug,
   excludeId = null
-}) => {
+}, client = pool) => {
   const existingCategory = await findCategoryBySlug(
     slug,
-    excludeId
+    excludeId, client
   );
 
   if (existingCategory) {
@@ -205,98 +207,132 @@ export const updateExistingCategory = async ({
   parentId = null,
   description
 }) => {
-  const existingCategory = await findCategoryById(id);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await lockCategoryScoring(client, true);
+    const existingCategory = await findCategoryById(id, client);
 
-  if (!existingCategory) {
-    throw new AppError(
-      'Category not found',
-      404,
-      'CATEGORY_NOT_FOUND'
-    );
-  }
+    if (!existingCategory) {
+      throw new AppError(
+        'Category not found',
+        404,
+        'CATEGORY_NOT_FOUND'
+      );
+    }
 
-  const normalizedName = normalizeName(name);
-  const slug = generateSlug(normalizedName);
+    const normalizedName = normalizeName(name);
+    const slug = generateSlug(normalizedName);
 
-  if (!slug) {
-    throw new AppError(
-      'Category name cannot generate a valid slug',
-      422,
-      'INVALID_CATEGORY_SLUG'
-    );
-  }
+    if (!slug) {
+      throw new AppError(
+        'Category name cannot generate a valid slug',
+        422,
+        'INVALID_CATEGORY_SLUG'
+      );
+    }
 
-  const duplicateName = await findCategoryByNameAndParent({
-    name: normalizedName,
-    parentId,
-    excludeId: id
-  });
+    const parentLevel = await validateParentHierarchy({
+      categoryId: id,
+      parentId
+    }, client);
 
-  if (duplicateName) {
-    throw new AppError(
-      'Category with the same name already exists under this parent',
-      409,
-      'CATEGORY_ALREADY_EXISTS'
-    );
-  }
+    await guardCategoryScoringChange(client, { id, parentId, slug });
 
-  await validateUniqueSlug({
-    slug,
-    excludeId: id
-  });
+    const duplicateName = await findCategoryByNameAndParent({
+      name: normalizedName,
+      parentId,
+      excludeId: id
+    }, client);
 
-  const parentLevel = await validateParentHierarchy({
-    categoryId: id,
-    parentId
-  });
+    if (duplicateName) {
+      throw new AppError(
+        'Category with the same name already exists under this parent',
+        409,
+        'CATEGORY_ALREADY_EXISTS'
+      );
+    }
 
-  const level = parentLevel === null
-    ? 1
-    : parentLevel;
+    await validateUniqueSlug({
+      slug,
+      excludeId: id
+    }, client);
+
+
+    const level = parentLevel === null
+      ? 1
+      : parentLevel;
   
-  if(!description){
-    description = null;
-  }
+    if(!description){
+      description = null;
+    }
 
-  return updateCategory({
-    id,
-    name: normalizedName,
-    slug,
-    description,
-    parentId,
-    level
-  });
+    const updated = await updateCategory({
+      id,
+      name: normalizedName,
+      slug,
+      description,
+      parentId,
+      level
+    }, client);
+    // Reparenting within the same scoring root is allowed; keep subtree levels coherent.
+    await client.query(`WITH RECURSIVE subtree AS (
+      SELECT id, level FROM categories WHERE id = $1
+      UNION ALL
+      SELECT c.id, s.level + 1 FROM categories c JOIN subtree s ON c.parent_id = s.id
+    ) UPDATE categories c SET level = s.level FROM subtree s
+      WHERE c.id = s.id AND c.level IS DISTINCT FROM s.level`, [id]);
+    await client.query('COMMIT');
+    return updated;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const removeCategory = async (id) => {
-  const category = await findCategoryById(id);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await lockCategoryScoring(client, true);
+    const category = await findCategoryById(id, client);
 
-  if (!category) {
-    throw new AppError(
-      'Category not found',
-      404,
-      'CATEGORY_NOT_FOUND'
-    );
-  }
+    if (!category) {
+      throw new AppError(
+        'Category not found',
+        404,
+        'CATEGORY_NOT_FOUND'
+      );
+    }
 
-  const childrenCount = await countChildren(id);
+    if (await categoryHasAttempts(client, id)) throw categoryScoringConflict();
+    const childrenCount = await countChildren(id, client);
 
-  if (childrenCount > 0) {
-    throw new AppError(
-      'Category cannot be deleted because it has child categories',
-      409,
-      'CATEGORY_HAS_CHILDREN'
-    );
-  }
+    if (childrenCount > 0) {
+      throw new AppError(
+        'Category cannot be deleted because it has child categories',
+        409,
+        'CATEGORY_HAS_CHILDREN'
+      );
+    }
 
-  const deleted = await deleteCategory(id);
+    const deleted = await deleteCategory(id, client);
 
-  if (!deleted) {
-    throw new AppError(
-      'Category could not be deleted',
-      500,
-      'CATEGORY_DELETE_FAILED'
-    );
+    if (!deleted) {
+      throw new AppError(
+        'Category could not be deleted',
+        500,
+        'CATEGORY_DELETE_FAILED'
+      );
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
 };
 

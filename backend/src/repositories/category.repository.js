@@ -92,7 +92,7 @@ export const findCategories = async ({
   };
 };
 
-export const findCategoryById = async (id) => {
+export const findCategoryById = async (id, client = pool) => {
   const query = `
     SELECT
       c.id,
@@ -107,7 +107,7 @@ export const findCategoryById = async (id) => {
     LIMIT 1
   `;
 
-  const { rows } = await pool.query(query, [id]);
+  const { rows } = await client.query(query, [id]);
 
   return mapCategory(rows[0]);
 };
@@ -116,7 +116,7 @@ export const findCategoryByNameAndParent = async ({
   name,
   parentId,
   excludeId = null
-}) => {
+}, client = pool) => {
 
   const query = `
     SELECT
@@ -133,11 +133,11 @@ export const findCategoryByNameAndParent = async ({
         parent_id = $2
         OR (parent_id IS NULL AND $2 IS NULL)
       )
-      AND ($3::int IS NULL OR id <> $3)
+      AND ($3::bigint IS NULL OR id <> $3)
     LIMIT 1
   `;
 
-  const { rows } = await pool.query(query, [
+  const { rows } = await client.query(query, [
     name,
     parentId,
     excludeId
@@ -148,7 +148,8 @@ export const findCategoryByNameAndParent = async ({
 
 export const findCategoryBySlug = async (
   slug,
-  excludeId = null
+  excludeId = null,
+  client = pool
 ) => {
   const query = `
     SELECT
@@ -161,11 +162,11 @@ export const findCategoryBySlug = async (
       updated_at
     FROM categories
     WHERE slug = $1
-      AND ($2::int IS NULL OR id <> $2)
+      AND ($2::bigint IS NULL OR id <> $2)
     LIMIT 1
   `;
 
-  const { rows } = await pool.query(query, [
+  const { rows } = await client.query(query, [
     slug,
     excludeId
   ]);
@@ -218,7 +219,7 @@ export const updateCategory = async ({
   description,
   parentId,
   level
-}) => {
+}, client = pool) => {
   const query = `
     UPDATE categories
     SET
@@ -240,7 +241,7 @@ export const updateCategory = async ({
       updated_at
   `;
 
-  const { rows } = await pool.query(query, [
+  const { rows } = await client.query(query, [
     name,
     slug,
     parentId,
@@ -252,26 +253,26 @@ export const updateCategory = async ({
   return mapCategory(rows[0]);
 };
 
-export const countChildren = async (categoryId) => {
+export const countChildren = async (categoryId, client = pool) => {
   const query = `
     SELECT COUNT(*)::int AS count
     FROM categories
     WHERE parent_id = $1
   `;
 
-  const { rows } = await pool.query(query, [categoryId]);
+  const { rows } = await client.query(query, [categoryId]);
 
   return rows[0].count;
 };
 
-export const deleteCategory = async (id) => {
+export const deleteCategory = async (id, client = pool) => {
   const query = `
     DELETE FROM categories
     WHERE id = $1
     RETURNING id
   `;
 
-  const { rows } = await pool.query(query, [id]);
+  const { rows } = await client.query(query, [id]);
 
   return rows[0] || null;
 };

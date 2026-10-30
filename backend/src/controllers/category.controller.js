@@ -54,7 +54,7 @@ export const createCategory = async (req, res, next) => {
 export const updateCategory = async (req, res, next) => {
   try {
     const category = await updateExistingCategory({
-      id: Number(req.params.id),
+      id: req.params.id,
       ...req.body
     });
 
@@ -70,7 +70,7 @@ export const updateCategory = async (req, res, next) => {
 
 export const deleteCategory = async (req, res, next) => {
   try {
-    await removeCategory(Number(req.params.id));
+    await removeCategory(req.params.id);
 
     return res.status(200).json({
       success: true,
