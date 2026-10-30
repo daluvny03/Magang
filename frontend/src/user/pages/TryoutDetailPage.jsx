@@ -54,8 +54,6 @@ function TryoutDetailPage() {
     const tryout = tryoutResponse?.data
 
     const handleStartTryout = async () => {
-        // Resume tidak memakai POST start agar attempt yang habis di antara
-        // render dan klik tidak diam-diam diganti dengan attempt baru.
         if (tryout?.activeAttempt?.id) {
             if (hasActiveTryoutAttempt(tryout)) {
                 navigate(`/user/cat/${tryout.activeAttempt.id}`)
@@ -139,14 +137,7 @@ function TryoutDetailPage() {
         !hasActiveAttempt &&
         tryout.isAccessible &&
         scheduleStatus === 'active'
-
-    const requiresPremium =
-        !hasActiveAttempt &&
-        !tryout.isAccessible &&
-        tryout.requiredTier === 'premium'
-
     const canStartOrResume = canResume || canStart
-
     const scheduleLabel = {
         upcoming: 'Belum dimulai',
         active: 'Periode aktif',
@@ -191,11 +182,13 @@ function TryoutDetailPage() {
                             : 'bg-primary-50 text-primary-700'
                             }`}
                     >
-                        {tryout.isFree
-                            ? 'Gratis'
-                            : tryout.isAccessible
-                                ? 'Premium'
-                                : 'Tingkatkan Subscription'}
+                        {hasActiveAttempt
+                            ? 'Ujian Berlangsung'
+                            : tryout.isFree
+                                ? 'Gratis'
+                                : tryout.isAccessible
+                                    ? 'Akses Tersedia'
+                                    : 'Subscription Diperlukan'}
                     </span>
                 </div>
 
@@ -349,37 +342,77 @@ function TryoutDetailPage() {
                         <button
                             type="button"
                             onClick={handleStartTryout}
-                            disabled={startTryoutMutation.isPending || isFetching}
+                            disabled={
+                                startTryoutMutation.isPending ||
+                                isFetching
+                            }
                             className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             <Play size={17} />
 
                             {startTryoutMutation.isPending
-                                ? (hasActiveAttempt ? 'Melanjutkan...' : 'Memulai...')
-                                : hasActiveAttempt
-                                    ? 'Lanjutkan Tryout'
-                                    : 'Mulai Tryout'}
-                        </button>
-                    ) : requiresPremium ? (
-                        <button
-                            type="button"
-                            onClick={() => navigate('/user/subscription')}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-700"
-                        >
-                            <Lock size={17} />
-                            Berlangganan Premium
+                                ? (
+                                    hasActiveAttempt
+                                        ? 'Melanjutkan...'
+                                        : 'Memulai...'
+                                )
+                                : (
+                                    hasActiveAttempt
+                                        ? 'Lanjutkan Tryout'
+                                        : 'Mulai Tryout'
+                                )}
                         </button>
                     ) : !tryout.isAccessible ? (
-                        <div className="rounded-xl bg-gray-50 p-4 text-center">
-                            <Lock
-                                size={20}
-                                className="mx-auto text-gray-400"
-                            />
+                        <div className="space-y-4">
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                                <div className="flex items-center gap-2 text-gray-700">
+                                    <Lock size={18} />
 
-                            <p className="mt-2 text-sm font-semibold text-gray-700">
-                                Tryout Terkunci
-                            </p>
+                                    <p className="text-sm font-semibold">
+                                        Tryout Terkunci
+                                    </p>
+                                </div>
 
+                                <p className="mt-2 text-sm text-gray-500">
+                                    Kamu memerlukan subscription yang
+                                    memiliki akses ke paket tryout ini.
+                                </p>
+
+                                {tryout.allowedTiers?.length > 0 && (
+                                    <div className="mt-4">
+                                        <p className="text-xs font-medium text-gray-600">
+                                            Subscription yang memiliki akses langsung:
+                                        </p>
+
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                            {tryout.allowedTiers.map((tier) => (
+                                                <span
+                                                    key={tier.id}
+                                                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700"
+                                                >
+                                                    {tier.name}
+                                                </span>
+                                            ))}
+                                        </div>
+
+                                        <p className="mt-2 text-xs text-gray-500">
+                                            Subscription lain yang mewarisi
+                                            tier tersebut juga dapat memiliki akses.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    navigate('/user/subscription')
+                                }
+                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-700"
+                            >
+                                <Lock size={17} />
+                                Lihat Subscription
+                            </button>
                         </div>
                     ) : (
                         <button

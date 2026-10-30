@@ -14,6 +14,15 @@ function TryoutCard({ tryout, onDetail, onSubscribe, onResume }) {
     active: 'Periode aktif',
     ended: 'Periode mulai berakhir',
   }[getTryoutScheduleStatus(tryout)] || 'Jadwal belum tersedia'
+  const allowedTierNames = (tryout.allowedTiers ?? [])
+    .map((tier) => tier.name)
+    .filter(Boolean)
+
+  const tierLabel = tryout.isFree
+    ? 'Gratis'
+    : allowedTierNames.length > 0
+      ? allowedTierNames.join(', ')
+      : 'Berlangganan'
 
   return (
     <article className="flex h-full flex-col rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-primary-200 hover:shadow-sm">
@@ -25,15 +34,11 @@ function TryoutCard({ tryout, onDetail, onSubscribe, onResume }) {
 
         <span
           className={`rounded-full px-3 py-1 text-xs font-semibold ${tryout.isFree
-              ? 'bg-green-50 text-green-700'
-              : 'bg-primary-50 text-primary-700'
+            ? 'bg-green-50 text-green-700'
+            : 'bg-primary-50 text-primary-700'
             }`}
         >
-          {tryout.isFree
-            ? 'Gratis'
-            : tryout.isAccessible
-              ? 'Premium'
-              : 'Tingkatkan Subscription'}
+          {tierLabel}
         </span>
       </div>
 

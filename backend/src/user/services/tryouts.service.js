@@ -27,7 +27,7 @@ const mapTryout = (row) => ({
   endAt: row.end_at,
   scheduleStatus: row.schedule_status,
   isAccessible: row.is_accessible,
-  requiredTier: row.required_tier,
+  allowedTiers: row.allowed_tiers ?? [],
   activeAttempt: row.active_attempt_id
     ? { id: String(row.active_attempt_id), expiresAt: row.active_attempt_expires_at }
     : null

@@ -4,6 +4,8 @@ import { pool } from '../../config/database.js'
 import { getPackageQuestionScoreLimits } from '../../repositories/passing-rules.repository.js'
 import { AppError } from '../../utils/app-error.js'
 import { findAvailableTryoutByIdForUser } from './tryouts.repository.js'
+import { validateTryoutId } from '../utils/tryout-id.js'
+import { lockCategoryScoring } from '../../repositories/category-scoring-guard.repository.js'
 
 const mapAttempt = (row) => {
   if (!row) return null
@@ -189,10 +191,12 @@ export const startTryoutAttempt = async ({
   userId,
   tryoutPackageId,
 }) => {
+  tryoutPackageId = validateTryoutId(tryoutPackageId)
   const client = await pool.connect()
 
   try {
     await client.query('BEGIN')
+    await lockCategoryScoring(client)
 
     /*
      * Lock berdasarkan kombinasi user + tryout.
@@ -200,17 +204,22 @@ export const startTryoutAttempt = async ({
      * PostgreSQL transaction-level advisory lock digunakan
      * agar dua request start yang datang bersamaan tidak
      * membuat dua active attempt.
+     * Preserve existing int4 keys; larger bigint IDs hash their exact decimal
+     * text. Hash collisions only add serialization, never duplicate attempts.
      */
     await client.query(
       `
         SELECT pg_advisory_xact_lock(
           hashtext($1),
-          $2::integer
+          CASE WHEN $2::bigint <= 2147483647
+            THEN $2::integer
+            ELSE hashtext($2::text)
+          END
         )
       `,
       [
         String(userId),
-        Number(tryoutPackageId),
+        tryoutPackageId,
       ]
     )
 
@@ -445,6 +454,7 @@ export const findActiveTryoutAttempt = async ({
   userId,
   tryoutPackageId,
 }) => {
+  tryoutPackageId = validateTryoutId(tryoutPackageId)
   const { rows } = await pool.query(
     `
       SELECT
@@ -483,10 +493,17 @@ export const findActiveTryoutAttempt = async ({
   return mapAttempt(rows[0])
 }
 
+export const tryoutPackageExists = async (tryoutPackageId) => {
+  const id = validateTryoutId(tryoutPackageId)
+  const { rows } = await pool.query('SELECT EXISTS (SELECT 1 FROM tryout_packages WHERE id = $1) AS found', [id])
+  return rows[0].found
+}
+
 export const expireElapsedTryoutAttempts = async ({
   userId,
   tryoutPackageId,
 }) => {
+  tryoutPackageId = validateTryoutId(tryoutPackageId)
   await pool.query(
     `
       UPDATE tryout_attempts

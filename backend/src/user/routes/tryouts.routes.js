@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { validateTryoutId } from '../utils/tryout-id.js'
 
 import {
   getTryoutById,
@@ -11,6 +12,15 @@ import {
 } from '../controllers/attempts.controller.js'
 
 const router = Router()
+
+router.param('tryoutId', (req, res, next, value) => {
+  try {
+    req.params.tryoutId = validateTryoutId(value)
+    next()
+  } catch (error) {
+    next(error)
+  }
+})
 
 router.get('/', getTryouts)
 
