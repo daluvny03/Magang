@@ -74,6 +74,10 @@ function AppRouter() {
                             element={<CategoryPage />}
                         />
                         <Route
+                            path="categories/:categoryId"
+                            element={<CategoryPage />}
+                        />
+                        <Route
                             path="questions"
                             element={<QuestionPage />}
                         />

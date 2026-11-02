@@ -19,7 +19,8 @@ function CategoryActionMenu({ category, onEdit, onDelete }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
-  const run = (callback) => {
+  const run = (event, callback) => {
+    event.stopPropagation()
     setOpen(false)
     callback?.(category)
   }
@@ -28,7 +29,10 @@ function CategoryActionMenu({ category, onEdit, onDelete }) {
     <div ref={ref} className="relative shrink-0">
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={(event) => {
+          event.stopPropagation()
+          setOpen((current) => !current)
+        }}
         aria-label={`Actions for ${category.name}`}
         title="Actions"
         className="rounded-lg p-1.5 text-gray-500 transition hover:bg-primary-100 hover:text-primary-700"
@@ -40,7 +44,7 @@ function CategoryActionMenu({ category, onEdit, onDelete }) {
         <div className="absolute right-0 top-full z-20 mt-1 w-40 overflow-hidden rounded-lg bg-white py-1 shadow-lg ring-1 ring-gray-100">
           <button
             type="button"
-            onClick={() => run(onEdit)}
+            onClick={(event) => run(event, onEdit)}
             className={`${item} text-gray-700 hover:bg-primary-50 hover:text-primary-700`}
           >
             <Edit size={16} />
@@ -49,7 +53,7 @@ function CategoryActionMenu({ category, onEdit, onDelete }) {
 
           <button
             type="button"
-            onClick={() => run(onDelete)}
+            onClick={(event) => run(event, onDelete)}
             className={`${item} text-red-600 hover:bg-red-50`}
           >
             <Trash2 size={16} />
