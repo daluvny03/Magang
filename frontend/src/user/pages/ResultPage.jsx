@@ -1,12 +1,62 @@
-
-import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle, ArrowLeft } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
+
 import AdvancedAnalysisCard from '../components/result/AdvancedAnalysisCard'
+import CategoryBreakdown from '../components/result/CategoryBreakdown'
+import { useAttemptAnalysisSummary } from '../hooks/useAttemptAnalysisSummary'
+import ResultInformationCard from '../components/result/ResultInformationCard'
+import ResultAnalysisSection from '../components/analysis/ResultAnalysisSection'
 import { useAttemptResult } from '../hooks/useAttemptResult'
 
-import ResultInformationCard from '../components/result/ResultInformationCard'
-import CategoryResultCard from '../components/result/CategoryResultCard'
-import ResultAnalysisSection from '../components/analysis/ResultAnalysisSection'
+function ResultSkeleton() {
+    return (
+        <div role="status" className="mx-auto w-full max-w-7xl space-y-6">
+            <div className="h-9 w-56 rounded-lg bg-muted motion-safe:animate-pulse" />
+            <div className="h-[28rem] rounded-2xl bg-muted motion-safe:animate-pulse" />
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {[1, 2, 3].map((item) => (
+                    <div
+                        key={item}
+                        className="h-72 rounded-2xl bg-muted motion-safe:animate-pulse"
+                    />
+                ))}
+            </div>
+
+            <span className="sr-only">Memuat hasil tryout...</span>
+        </div>
+    )
+}
+
+function ResultMessage({ title, description }) {
+    return (
+        <div className="mx-auto flex min-h-[50vh] max-w-lg flex-col items-center justify-center px-4 text-center">
+            <div className="mb-4 rounded-full bg-destructive/10 p-4">
+                <AlertCircle
+                    size={32}
+                    aria-hidden="true"
+                    className="text-destructive"
+                />
+            </div>
+
+            <h1 className="text-[20px] font-bold text-foreground">
+                {title}
+            </h1>
+
+            <p className="mt-2 text-[14px] leading-6 text-muted-foreground">
+                {description}
+            </p>
+
+            <Link
+                to="/user/history"
+                className="focus-ring mt-6 inline-flex h-12 items-center gap-2 rounded-xl bg-primary-700 px-5 text-[14px] font-semibold text-white transition hover:bg-primary-700/90"
+            >
+                <ArrowLeft size={18} aria-hidden="true" />
+                Kembali ke Riwayat Tryout
+            </Link>
+        </div>
+    )
+}
 
 function ResultPage() {
     const { attemptId } = useParams()
@@ -20,7 +70,7 @@ function ResultPage() {
         isError,
         error,
     } = useAttemptResult(attemptId)
-
+    const { data: analysis } = useAttemptAnalysisSummary(attemptId)
     const result = data?.data
 
     if (!isValidAttemptId) {
@@ -33,23 +83,11 @@ function ResultPage() {
     }
 
     if (isLoading) {
-        return (
-            <div className="flex min-h-[50vh] items-center justify-center">
-                <div className="flex flex-col items-center gap-3">
-                    <Loader2
-                        className="h-8 w-8 animate-spin text-blue-600"
-                    />
-                    <p className="text-sm text-gray-500">
-                        Memuat hasil tryout...
-                    </p>
-                </div>
-            </div>
-        )
+        return <ResultSkeleton />
     }
 
     if (isError) {
-        const isNotFound =
-            error?.response?.status === 404
+        const isNotFound = error?.response?.status === 404
 
         return (
             <ResultMessage
@@ -79,26 +117,19 @@ function ResultPage() {
     const { attempt, summary, categories = [] } = result
 
     return (
-        <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-            {/* Page Header */}
-            <div className="space-y-4">
+        <div className="mx-auto w-full max-w-7xl space-y-8">
+            <div className="space-y-3">
                 <Link
                     to="/user/history"
-                    className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 transition hover:text-blue-600"
+                    className="focus-ring inline-flex items-center gap-2 rounded-lg text-[14px] font-medium text-muted-foreground transition hover:text-primary-700"
                 >
-                    <ArrowLeft className="h-4 w-4" />
+                    <ArrowLeft size={18} aria-hidden="true" />
                     Kembali ke Riwayat Tryout
                 </Link>
 
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-                        Hasil Tryout
-                    </h1>
-
-                    <p className="mt-2 text-sm text-gray-500">
-                        {attempt.tryoutName}
-                    </p>
-                </div>
+                <h1 className="text-[26px] font-bold text-foreground sm:text-[30px]">
+                    Hasil Tryout
+                </h1>
             </div>
 
             <ResultInformationCard
@@ -106,86 +137,33 @@ function ResultPage() {
                 summary={summary}
             />
 
+            <CategoryBreakdown
+                categories={categories}
+                analysisCategories={analysis?.categories ?? []}
+            />
+
             <section
-                aria-labelledby="category-result-heading"
+                aria-labelledby="result-analysis-heading"
                 className="space-y-4"
             >
                 <div>
                     <h2
-                        id="category-result-heading"
-                        className="text-xl font-bold text-gray-900"
-                    >
-                        Hasil Per Kategori
-                    </h2>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                        Ringkasan nilai dan pengerjaan setiap kategori ujian.
-                    </p>
-                </div>
-
-                {categories.length > 0 ? (
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        {categories.map((category) => (
-                            <CategoryResultCard
-                                key={category.slug}
-                                category={category}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="rounded-xl border border-gray-200 bg-white p-6 text-sm text-gray-500">
-                        Data hasil per kategori tidak tersedia.
-                    </div>
-                )}
-            </section>
-
-            <section
-                aria-labelledby="result-analysis-heading"
-                className="space-y-5"
-            >
-                <div>
-                    <h2
                         id="result-analysis-heading"
-                        className="text-xl font-bold text-slate-900"
+                        className="text-[19px] font-bold text-foreground"
                     >
                         Analisis Hasil Tryout
                     </h2>
 
-                    <p className="mt-1 text-sm text-slate-500">
-                        Ringkasan pencapaian skor, akurasi,
-                        penyelesaian soal, dan waktu pengerjaan ujian.
+                    <p className="mt-1 text-[14px] text-muted-foreground">
+                        Ringkasan pencapaian skor, akurasi, penyelesaian soal,
+                        dan waktu pengerjaan ujian.
                     </p>
                 </div>
 
                 <ResultAnalysisSection attemptId={attemptId} />
             </section>
+
             <AdvancedAnalysisCard attemptId={attemptId} />
-        </div>
-    )
-}
-
-function ResultMessage({ title, description }) {
-    return (
-        <div className="mx-auto flex min-h-[50vh] max-w-lg flex-col items-center justify-center px-4 text-center">
-            <div className="mb-4 rounded-full bg-red-50 p-4">
-                <AlertCircle className="h-8 w-8 text-red-500" />
-            </div>
-
-            <h1 className="text-xl font-semibold text-gray-900">
-                {title}
-            </h1>
-
-            <p className="mt-2 text-sm text-gray-500">
-                {description}
-            </p>
-
-            <Link
-                to="/user/history"
-                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
-            >
-                <ArrowLeft className="h-4 w-4" />
-                Kembali ke Riwayat Tryout
-            </Link>
         </div>
     )
 }

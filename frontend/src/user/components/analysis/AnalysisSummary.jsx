@@ -1,85 +1,37 @@
-
 import {
   ChartNoAxesColumn,
   ClipboardCheck,
   Clock3,
 } from 'lucide-react'
 
-const formatNumber = (value) => {
-  if (value === null || value === undefined) {
-    return '—'
-  }
+import {
+  formatDuration,
+  formatNumber,
+  formatPercentage,
+} from '@/utils/format'
 
-  const number = Number(value)
-
-  if (!Number.isFinite(number)) {
-    return '—'
-  }
-
-  return new Intl.NumberFormat('id-ID', {
-    maximumFractionDigits: 2,
-  }).format(number)
-}
-
-const formatPercentage = (value) => {
-  if (value === null || value === undefined) {
-    return '—'
-  }
-
-  return `${formatNumber(value)}%`
-}
-
-const formatDuration = (seconds) => {
-  if (seconds === null || seconds === undefined) {
-    return '—'
-  }
-
-  const totalSeconds = Number(seconds)
-
-  if (
-    !Number.isFinite(totalSeconds) ||
-    totalSeconds < 0
-  ) {
-    return '—'
-  }
-
-  const minutes = Math.floor(totalSeconds / 60)
-  const remainingSeconds = Math.floor(totalSeconds % 60)
-
-  if (minutes === 0) {
-    return `${remainingSeconds} detik`
-  }
-
-  if (remainingSeconds === 0) {
-    return `${minutes} menit`
-  }
-
-  return `${minutes} m ${remainingSeconds} d`
-}
-
-function SummaryMetric({
-  icon: Icon,
-  label,
-  value,
-  description,
-}) {
+function SummaryMetric({ icon: Icon, label, value, description, className = '' }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-      <div className="mb-3 flex items-center gap-2 text-slate-500">
-        <Icon size={18} aria-hidden="true" />
-
-        <span className="text-xs font-medium sm:text-sm">
-          {label}
+    <div className={`rounded-2xl border border-border bg-muted/50 p-4 sm:p-5 ${className}`}>
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700">
+          <Icon size={20} aria-hidden="true" />
         </span>
+
+        <dt className="text-[14px] font-medium text-muted-foreground">
+          {label}
+        </dt>
       </div>
 
-      <p className="break-words text-2xl font-bold tracking-tight text-slate-900">
-        {value}
-      </p>
+      <dd className="mt-3">
+        <span className="block break-words text-[26px] font-bold leading-tight text-foreground">
+          {value}
+        </span>
 
-      <p className="mt-2 text-xs leading-relaxed text-slate-500">
-        {description}
-      </p>
+        <span className="mt-1.5 block text-[13px] leading-5 text-muted-foreground">
+          {description}
+        </span>
+      </dd>
     </div>
   )
 }
@@ -92,9 +44,7 @@ function AnalysisSummary({ summary }) {
       key: 'score',
       icon: ChartNoAxesColumn,
       label: 'Pencapaian Skor',
-      value: formatPercentage(
-        summary.scorePercentage
-      ),
+      value: formatPercentage(summary.scorePercentage),
       description:
         `${formatNumber(summary.totalScore)} dari ` +
         `${formatNumber(summary.maximumScore)} poin`,
@@ -103,9 +53,7 @@ function AnalysisSummary({ summary }) {
       key: 'completion',
       icon: ClipboardCheck,
       label: 'Penyelesaian',
-      value: formatPercentage(
-        summary.completionPercentage
-      ),
+      value: formatPercentage(summary.completionPercentage),
       description:
         `${formatNumber(summary.answered)} dari ` +
         `${formatNumber(summary.totalQuestions)} soal`,
@@ -114,44 +62,42 @@ function AnalysisSummary({ summary }) {
       key: 'duration',
       icon: Clock3,
       label: 'Durasi Ujian',
-      value: formatDuration(
-        summary.durationSeconds
-      ),
-      description:
-        'Waktu sejak mulai hingga ujian selesai',
+      value: formatDuration(summary.durationSeconds),
+      description: 'Waktu sejak mulai hingga ujian selesai',
     },
   ]
 
   return (
     <section
       aria-labelledby="analysis-summary-title"
-      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+      className="rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6"
     >
       <div className="mb-5">
-        <h2
+        <h3
           id="analysis-summary-title"
-          className="text-lg font-semibold text-slate-900"
+          className="text-[17px] font-bold text-foreground"
         >
           Ringkasan Analisis
-        </h2>
+        </h3>
 
-        <p className="mt-1 text-sm text-slate-500">
-          Gambaran performa selama mengerjakan
-          simulasi CAT.
+        <p className="mt-1 text-[14px] text-muted-foreground">
+          Gambaran performa selama mengerjakan simulasi CAT.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {metrics.map((metric) => (
+      <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {metrics.map((metric, index) => (
           <SummaryMetric
             key={metric.key}
             icon={metric.icon}
             label={metric.label}
             value={metric.value}
             description={metric.description}
+            // di 640-1023px tile terakhir mengisi dua kolom agar tidak sendirian
+            className={index === metrics.length - 1 ? 'sm:max-lg:col-span-2' : ''}
           />
         ))}
-      </div>
+      </dl>
     </section>
   )
 }

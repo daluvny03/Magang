@@ -1,4 +1,3 @@
-
 import { AlertCircle, RefreshCw } from 'lucide-react'
 
 import { useAttemptAnalysisSummary } from '../../hooks/useAttemptAnalysisSummary'
@@ -10,14 +9,14 @@ function AnalysisLoading() {
   return (
     <div
       role="status"
-      className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+      className="rounded-2xl border border-border bg-card p-6 shadow-soft"
     >
-      <div className="animate-pulse space-y-4">
-        <div className="h-6 w-48 rounded bg-slate-200" />
+      <div className="space-y-4 motion-safe:animate-pulse">
+        <div className="h-6 w-48 rounded bg-muted" />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="h-28 rounded-xl bg-slate-100" />
-          <div className="h-28 rounded-xl bg-slate-100" />
+          <div className="h-28 rounded-xl bg-muted" />
+          <div className="h-28 rounded-xl bg-muted" />
         </div>
       </div>
 
@@ -45,17 +44,17 @@ function AnalysisError({ error, onRetry }) {
     >
       <div className="flex items-start gap-3">
         <AlertCircle
-          size={20}
-          className="mt-0.5 shrink-0 text-red-600"
+          size={22}
+          className="mt-0.5 shrink-0 text-destructive"
           aria-hidden="true"
         />
 
         <div className="min-w-0 flex-1">
-          <h2 className="font-semibold text-red-900">
+          <h3 className="text-[15px] font-bold text-red-900">
             Ringkasan Analisis Tidak Tersedia
-          </h2>
+          </h3>
 
-          <p className="mt-1 text-sm text-red-700">
+          <p className="mt-1 text-[14px] text-red-800">
             {message}
           </p>
 
@@ -63,7 +62,7 @@ function AnalysisError({ error, onRetry }) {
             <button
               type="button"
               onClick={onRetry}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
+              className="focus-ring mt-4 inline-flex h-11 items-center gap-2 rounded-xl border border-red-300 bg-white px-4 text-[14px] font-semibold text-red-800 transition hover:bg-red-100"
             >
               <RefreshCw size={16} aria-hidden="true" />
               Coba Lagi
@@ -99,7 +98,7 @@ function ResultAnalysisSection({ attemptId }) {
 
   if (!data?.summary) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
+      <div className="rounded-2xl border border-border bg-card p-5 text-[14px] text-muted-foreground">
         Ringkasan analisis belum tersedia.
       </div>
     )
@@ -107,13 +106,9 @@ function ResultAnalysisSection({ attemptId }) {
 
   return (
     <div className="space-y-6">
-      <AnalysisSummary
-        summary={data.summary}
-      />
+      <AnalysisSummary summary={data.summary} />
 
-      <CategoryPerformance
-        categories={data.categories ?? []}
-      />
+      <CategoryPerformance categories={data.categories ?? []} />
     </div>
   )
 }

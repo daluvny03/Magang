@@ -1,46 +1,22 @@
+import { Link, Navigate, useParams } from 'react-router-dom'
+import { AlertCircle, ArrowLeft, BookOpen, RefreshCw, SearchX } from 'lucide-react'
 
-import { Link, useParams } from 'react-router-dom'
-import {
-    AlertCircle,
-    ArrowLeft,
-    Loader2,
-    RefreshCw,
-} from 'lucide-react'
+import EmptyState from '@/user/components/common/EmptyState'
+import PageHeader from '@/user/components/common/PageHeader'
+import { buttonClass } from '@/user/components/common/buttonStyles'
+import { ChartSkeleton, StatSkeleton } from '@/user/components/common/Skeletons'
 
 import { useAttemptAnalysis } from '../hooks/useAttemptAnalysis'
 import TimeAnalysisSection from '../components/analysis/TimeAnalysisSection'
-import { Navigate } from 'react-router-dom'
-import {
-    isSubscriptionRequiredError,
-} from '../utils/subscription-access'
+import { isSubscriptionRequiredError } from '../utils/subscription-access'
 
-const isValidId = (value) =>
-    /^[1-9]\d*$/.test(String(value ?? ''))
+const isValidId = (value) => /^[1-9]\d*$/.test(String(value ?? ''))
 
-function TimeAnalysisMessage({ title, description }) {
+function BackToHistory() {
     return (
-        <div className="mx-auto w-full max-w-3xl px-4 py-12 text-center">
-            <AlertCircle
-                size={32}
-                className="mx-auto mb-4 text-slate-400"
-                aria-hidden="true"
-            />
-
-            <h1 className="text-xl font-bold text-slate-900">
-                {title}
-            </h1>
-
-            <p className="mt-2 text-sm text-slate-500">
-                {description}
-            </p>
-
-            <Link
-                to="/user/history"
-                className="mt-5 inline-flex text-sm font-semibold text-blue-600 hover:text-blue-700"
-            >
-                Kembali ke Riwayat Tryout
-            </Link>
-        </div>
+        <Link to="/user/history" className={buttonClass.outline}>
+            Kembali ke Riwayat Tryout
+        </Link>
     )
 }
 
@@ -55,94 +31,92 @@ function TimeAnalysisContent({ attemptId }) {
 
     if (isPending && !isError) {
         return (
-            <div
-                role="status"
-                className="flex min-h-[50vh] items-center justify-center gap-3"
-            >
-                <Loader2
-                    size={28}
-                    className="animate-spin text-blue-600"
-                    aria-hidden="true"
-                />
+            <div role="status" className="mx-auto w-full max-w-7xl space-y-6">
+                <StatSkeleton count={4} />
+                <ChartSkeleton className="h-80" />
+                <ChartSkeleton className="h-72" />
 
-                <span className="text-sm text-slate-500">
-                    Memuat analisis waktu...
-                </span>
+                <span className="sr-only">Memuat analisis waktu...</span>
             </div>
         )
     }
 
     if (isError && isSubscriptionRequiredError(error)) {
-        return (
-            <Navigate
-                to="/user/forbidden"
-                replace
-            />
-        )
+        return <Navigate to="/user/forbidden" replace />
     }
 
     if (isError) {
         const status = error?.response?.status
+        const canRetry = ![401, 403, 404, 409, 422].includes(status)
 
         return (
-            <div className="space-y-4">
-                <TimeAnalysisMessage
-                    title="Analisis Waktu Tidak Tersedia"
-                    description={
-                        status === 404
-                            ? 'Data ujian tidak ditemukan atau kamu tidak memiliki akses.'
-                            : status === 409
-                                ? 'Analisis waktu belum tersedia atau data ujian tidak konsisten.'
-                                : 'Terjadi kesalahan saat memuat analisis waktu.'
-                    }
-                />
+            <EmptyState
+                icon={AlertCircle}
+                title="Analisis Waktu Tidak Tersedia"
+                description={
+                    status === 404
+                        ? 'Data ujian tidak ditemukan atau kamu tidak memiliki akses.'
+                        : status === 409
+                            ? 'Analisis waktu belum tersedia atau data ujian tidak konsisten.'
+                            : 'Terjadi kesalahan saat memuat analisis waktu.'
+                }
+                action={
+                    <>
+                        {canRetry && (
+                            <button
+                                type="button"
+                                onClick={() => refetch()}
+                                className={buttonClass.solid}
+                            >
+                                <RefreshCw size={16} aria-hidden="true" />
+                                Coba Lagi
+                            </button>
+                        )}
 
-                {![401, 403, 404, 409, 422].includes(status) && (
-                    <div className="flex justify-center">
-                        <button
-                            type="button"
-                            onClick={() => refetch()}
-                            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                        >
-                            <RefreshCw size={16} />
-                            Coba Lagi
-                        </button>
-                    </div>
-                )}
-            </div>
+                        <BackToHistory />
+                    </>
+                }
+            />
         )
     }
 
     if (!data?.attempt) {
         return (
-            <TimeAnalysisMessage
+            <EmptyState
+                icon={SearchX}
                 title="Data Analisis Tidak Tersedia"
                 description="Informasi analisis waktu belum dapat ditampilkan."
+                action={<BackToHistory />}
             />
         )
     }
 
     return (
-        <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-            <header className="space-y-4">
-                <Link
-                    to={`/user/results/${attemptId}`}
-                    className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-blue-600"
-                >
-                    <ArrowLeft size={16} />
-                    Kembali ke Hasil Tryout
-                </Link>
+        <div className="mx-auto w-full max-w-7xl space-y-6">
+            <PageHeader
+                eyebrow={data.attempt.tryoutName}
+                title="Analisis Waktu per Soal"
+                subtitle="Ketahui berapa lama kamu mengerjakan tiap soal dan di mana waktumu habis terpakai."
+                actions={
+                    <>
+                        <Link
+                            to={`/user/results/${attemptId}`}
+                            className={buttonClass.outline}
+                        >
+                            <ArrowLeft size={18} aria-hidden="true" />
+                            Kembali ke Hasil
+                        </Link>
 
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                        Analisis Manajemen Waktu
-                    </h1>
-
-                    <p className="mt-2 text-sm text-slate-500">
-                        {data.attempt.tryoutName}
-                    </p>
-                </div>
-            </header>
+                        <Link
+                            to={`/user/results/${attemptId}/answers`}
+                            className={buttonClass.solid}
+                        >
+                            <BookOpen size={18} aria-hidden="true" />
+                            Pembahasan Soal
+                        </Link>
+                    </>
+                }
+            />
 
             <TimeAnalysisSection
                 questions={data.questions ?? []}
@@ -158,9 +132,11 @@ function TimeAnalysisPage() {
 
     if (!isValidId(attemptId)) {
         return (
-            <TimeAnalysisMessage
+            <EmptyState
+                icon={SearchX}
                 title="ID Tryout Tidak Valid"
                 description="Alamat analisis waktu tidak valid."
+                action={<BackToHistory />}
             />
         )
     }
