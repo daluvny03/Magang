@@ -1,3 +1,4 @@
+import { Check, ChevronRight } from 'lucide-react'
 
 import MathText from '../../../components/common/MathText'
 
@@ -9,111 +10,127 @@ function QuestionPanel({
     onSelectAnswer,
     isSavingAnswer,
 }) {
-    return (
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm lg:p-7">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-5">
-                <h2 className="text-lg font-bold text-gray-900">
-                    Soal Nomor{' '}
-                    <span className="ml-1 text-blue-600">
-                        {currentNumber}
-                    </span>
-                </h2>
+    const categoryPath = Array.isArray(question.categoryPath)
+        ? question.categoryPath
+        : []
 
-                <span className="text-xs font-medium text-gray-400">
-                    {currentNumber} dari {totalQuestions}
+    return (
+        <section
+            aria-labelledby="cat-question-title"
+            className="rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-7 lg:p-9"
+        >
+            <div className="flex items-center gap-3.5 border-b border-border pb-5">
+                <span
+                    aria-hidden="true"
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-700 text-[14px] font-bold text-white"
+                >
+                    {currentNumber}
                 </span>
+
+                <div className="min-w-0">
+                    <h2
+                        id="cat-question-title"
+                        className="text-[17px] font-bold text-foreground"
+                    >
+                        Soal Nomor {currentNumber}
+                    </h2>
+
+                    <p className="text-[13px] text-muted-foreground">
+                        {currentNumber} dari {totalQuestions} soal
+                    </p>
+                </div>
             </div>
 
-            {/* Question Category */}
-            {Array.isArray(question.categoryPath) &&
-                question.categoryPath.length > 0 && (
-                    <nav
-                        aria-label="Kategori soal"
-                        className="mt-5 flex flex-wrap items-center gap-2"
-                    >
-                        {question.categoryPath.map((category, index) => (
-                            <span
+            {categoryPath.length > 0 && (
+                <nav aria-label="Kategori soal" className="mt-5">
+                    <ol className="flex flex-wrap items-center gap-1.5">
+                        {categoryPath.map((category, index) => (
+                            <li
                                 key={`${index}-${category}`}
-                                className="flex items-center gap-2"
+                                className="flex items-center gap-1.5"
                             >
                                 {index > 0 && (
-                                    <span
+                                    <ChevronRight
+                                        size={15}
                                         aria-hidden="true"
-                                        className="text-gray-400"
-                                    >
-                                        →
-                                    </span>
+                                        className="text-muted-foreground"
+                                    />
                                 )}
 
                                 <span
                                     className={
                                         index === 0
-                                            ? 'rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700'
-                                            : 'text-xs font-medium text-gray-600'
+                                            ? 'rounded-lg bg-primary-50 px-3 py-1 text-[13px] font-semibold text-primary-700'
+                                            : 'text-[13px] font-medium text-muted-foreground'
                                     }
                                 >
                                     {category}
                                 </span>
-                            </span>
+                            </li>
                         ))}
-                    </nav>
-                )}
+                    </ol>
+                </nav>
+            )}
 
-            {/* Question Content */}
             <div className="pt-6">
                 {question.questionImage && (
                     <img
                         src={question.questionImage}
-                        alt="Soal"
+                        alt="Gambar pendukung soal"
                         className="mb-6 max-h-96 max-w-full rounded-xl object-contain"
                     />
                 )}
 
-                {/* LaTeX Question Renderer */}
                 <MathText
                     content={question.questionText}
-                    className="text-base leading-8 text-gray-800"
+                    className="text-[14px] font-medium leading-8 text-foreground lg:text-[16px] lg:leading-9"
                 />
 
-                {/* Answer Options */}
-                <div className="mt-7 space-y-3">
+                <div
+                    role="group"
+                    aria-label="Pilihan jawaban"
+                    className="mt-7 space-y-3"
+                >
                     {question.answerOptions?.map((option) => {
-                        const isSelected =
-                            selectedAnswer === option.key
+                        const isSelected = selectedAnswer === option.key
 
                         return (
                             <button
                                 key={option.key}
                                 type="button"
                                 disabled={isSavingAnswer}
-                                onClick={() =>
-                                    onSelectAnswer(option.key)
-                                }
+                                onClick={() => onSelectAnswer(option.key)}
                                 aria-pressed={isSelected}
-                                className={`flex w-full min-w-0 items-start gap-3 rounded-xl border p-4 text-left transition disabled:cursor-wait disabled:opacity-70 ${
+                                className={`focus-ring flex w-full min-w-0 items-start gap-4 rounded-xl border p-4 text-left transition-colors disabled:cursor-wait disabled:opacity-70 lg:p-5 ${
                                     isSelected
-                                        ? 'border-blue-500 bg-blue-50'
-                                        : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-gray-50'
+                                        ? 'border-primary bg-primary/10 ring-1 ring-primary/40'
+                                        : 'border-border bg-card hover:border-primary/60 hover:bg-muted/60'
                                 }`}
                             >
-                                {/* Answer Key */}
                                 <span
-                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-sm font-bold ${
+                                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[12px] font-bold ${
                                         isSelected
-                                            ? 'border-blue-600 bg-blue-600 text-white'
-                                            : 'border-gray-200 bg-gray-50 text-gray-700'
+                                            ? 'bg-primary-700 text-white'
+                                            : 'bg-muted text-muted-foreground'
                                     }`}
                                 >
                                     {option.key}
                                 </span>
 
-                                {/* LaTeX Answer Renderer */}
                                 <div className="min-w-0 flex-1 pt-1.5">
                                     <MathText
                                         content={option.text}
-                                        className="text-sm font-medium leading-6 text-gray-700"
+                                        className="text-[14px] leading-relaxed text-foreground lg:text-[15px]"
                                     />
                                 </div>
+
+                                {isSelected && (
+                                    <Check
+                                        size={20}
+                                        aria-hidden="true"
+                                        className="mt-2 shrink-0 text-primary-700"
+                                    />
+                                )}
                             </button>
                         )
                     })}

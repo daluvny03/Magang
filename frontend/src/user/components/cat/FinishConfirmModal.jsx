@@ -1,11 +1,11 @@
-import { useModalFocus } from '../../../hooks/useModalFocus'
 import { AlertTriangle, X } from 'lucide-react'
-
+import { useModalFocus } from '@/hooks/useModalFocus'
 function FinishConfirmModal({
     isOpen,
     answeredCount,
     unansweredCount,
     doubtfulCount,
+    unansweredNumbers = [],
     isSubmitting,
     onClose,
     onConfirm,
@@ -16,6 +16,12 @@ function FinishConfirmModal({
         return null
     }
 
+    const tiles = [
+        { label: 'Terjawab', value: answeredCount, box: 'bg-primary-50', tone: 'text-primary-700' },
+        { label: 'Belum dijawab', value: unansweredCount, box: 'bg-muted', tone: 'text-muted-foreground' },
+        { label: 'Ragu-ragu', value: doubtfulCount, box: 'bg-amber-50', tone: 'text-amber-800' },
+    ]
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div
@@ -24,21 +30,21 @@ function FinishConfirmModal({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="finish-confirm-title"
-                className="w-full max-w-md rounded-2xl bg-white shadow-xl"
+                className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-card shadow-xl"
             >
-                <div className="flex items-start justify-between border-b border-gray-100 p-5">
+                <div className="flex items-start justify-between gap-3 border-b border-border p-5">
                     <div className="flex gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-50">
-                            <AlertTriangle className="h-5 w-5 text-amber-600" />
+                            <AlertTriangle size={20} aria-hidden="true" className="text-amber-600" />
                         </div>
 
                         <div>
-                            <h2 id="finish-confirm-title" className="font-bold text-gray-900">
+                            <h2 id="finish-confirm-title" className="text-[16px] font-bold text-foreground">
                                 Selesaikan Tryout?
                             </h2>
 
-                            <p className="mt-1 text-sm text-gray-500">
-                                Pastikan jawaban Anda sudah sesuai sebelum menyelesaikan tryout.
+                            <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+                                Setelah diselesaikan, jawaban tidak bisa diubah lagi. Pastikan jawaban Anda sudah sesuai.
                             </p>
                         </div>
                     </div>
@@ -48,71 +54,72 @@ function FinishConfirmModal({
                         disabled={isSubmitting}
                         onClick={onClose}
                         aria-label="Tutup konfirmasi"
-                        className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed"
+                        className="focus-ring rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed"
                     >
-                        <X className="h-5 w-5" />
+                        <X size={20} aria-hidden="true" />
                     </button>
                 </div>
 
-                <div className="p-5">
-                    <div className="grid grid-cols-3 gap-3">
-                        <div className="rounded-xl bg-green-50 p-3 text-center">
-                            <p className="text-xl font-bold text-green-700">
-                                {answeredCount}
-                            </p>
+                <div className="space-y-3 p-5">
+                    <dl className="grid grid-cols-3 gap-2.5">
+                        {tiles.map((tile) => (
+                            <div key={tile.label} className={`rounded-xl p-3 text-center ${tile.box}`}>
+                                <dd className={`text-[22px] font-bold leading-none ${tile.tone}`}>
+                                    {tile.value}
+                                </dd>
 
-                            <p className="mt-1 text-xs text-green-600">
-                                Terjawab
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl bg-gray-50 p-3 text-center">
-                            <p className="text-xl font-bold text-gray-700">
-                                {unansweredCount}
-                            </p>
-
-                            <p className="mt-1 text-xs text-gray-500">
-                                Belum
-                            </p>
-                        </div>
-
-                        <div className="rounded-xl bg-amber-50 p-3 text-center">
-                            <p className="text-xl font-bold text-amber-700">
-                                {doubtfulCount}
-                            </p>
-
-                            <p className="mt-1 text-xs text-amber-600">
-                                Ragu-ragu
-                            </p>
-                        </div>
-                    </div>
+                                <dt className="mt-1.5 text-[11px] text-muted-foreground">
+                                    {tile.label}
+                                </dt>
+                            </div>
+                        ))}
+                    </dl>
 
                     {unansweredCount > 0 && (
-                        <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-700">
-                            Masih ada {unansweredCount} soal yang belum dijawab.
+                        <div className="rounded-xl border border-border p-3.5">
+                            <p className="text-[13px] font-semibold text-foreground">
+                                Masih ada {unansweredCount} soal yang belum dijawab
+                            </p>
+
+                            {unansweredNumbers.length > 0 && (
+                                <ul className="mt-2.5 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto">
+                                    {unansweredNumbers.map((number) => (
+                                        <li
+                                            key={number}
+                                            className="flex h-7 min-w-7 items-center justify-center rounded-lg bg-muted px-2 text-[12px] font-semibold text-foreground"
+                                        >
+                                            {number}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    )}
+
+                    {doubtfulCount > 0 && (
+                        <p className="rounded-xl bg-amber-50 px-3.5 py-3 text-[13px] leading-5 text-amber-800">
+                            Ada {doubtfulCount} soal yang Anda tandai ragu-ragu. Periksa kembali bila masih ada waktu.
                         </p>
                     )}
                 </div>
 
-                <div className="flex justify-end gap-3 border-t border-gray-100 p-5">
+                <div className="flex flex-col-reverse gap-2 border-t border-border p-5 sm:flex-row sm:justify-end">
                     <button
                         type="button"
                         disabled={isSubmitting}
                         onClick={onClose}
-                        className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="focus-ring h-12 rounded-xl border border-border px-5 text-[13px] font-semibold text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        Kembali
+                        Periksa lagi
                     </button>
 
                     <button
                         type="button"
                         disabled={isSubmitting}
                         onClick={onConfirm}
-                        className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="focus-ring h-12 rounded-xl bg-primary-700 px-5 text-[13px] font-semibold text-white hover:bg-primary-700/90 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                        {isSubmitting
-                            ? 'Menyelesaikan...'
-                            : 'Selesaikan Tryout'}
+                        {isSubmitting ? 'Menyelesaikan...' : 'Selesaikan Tryout'}
                     </button>
                 </div>
             </div>
