@@ -44,8 +44,10 @@ api.interceptors.response.use(
   (error) => {
     if (axios.isCancel(error)) return Promise.reject(error)
     if (!isCurrentSession(error.config)) return Promise.reject(staleSessionError())
-    const errorCodes = error.response?.data?.errors
-    ?.map((item) => item.code) ?? []
+    const rawErrors = error.response?.data?.errors
+    const errorCodes = Array.isArray(rawErrors)
+      ? rawErrors.map((item) => item.code)
+      : []
 
   const sessionInvalid =
     error.response?.status === 401 &&

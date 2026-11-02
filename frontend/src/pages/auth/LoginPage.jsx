@@ -9,17 +9,15 @@ import GoogleSignInButton from '../../components/auth/GoogleSignInButton'
 import Button from '../../components/ui/Button'
 import { login, loginWithGoogle } from '../../services/auth.service'
 import { useAuthStore } from '../../stores/authStore'
+import { applyFieldErrors, normalizeServerErrors } from '../../utils/normalizeServerErrors'
+import { getPostLoginPath } from '../../utils/getPostLoginPath'
 import characterImage from '../../assets/login-character.png'
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email wajib diisi').email('Email tidak valid'),
   password: z.string().min(1, 'Password wajib diisi'),
 })
-
-// Ubah ke false untuk menyembunyikan elemen yang belum punya fitur backend
-// (Ingat Saya dan Google belum tersedia)
 const SHOW_EXTRAS = true
-
 const backgroundStyle = {
   backgroundColor: '#2f8d8f', // dasar teal gelap (sisi kanan)
   backgroundRepeat: 'no-repeat',
@@ -42,6 +40,8 @@ const inputState = (error) =>
     ? 'border-red-400 focus:ring-red-200'
     : 'border-transparent focus:border-primary-500 focus:ring-primary-500/30'
 
+const LOGIN_FIELDS = ['email', 'password']
+
 function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -52,6 +52,7 @@ function LoginPage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(loginSchema),
@@ -81,39 +82,25 @@ function LoginPage() {
       }
       loginStore({ accessToken, user })
       toast.success('Login berhasil')
-      const defaultDestination =
-        user.role === 'admin'
-          ? '/admin/dashboard'
-          : '/user/dashboard'
 
-      const fromPath = location.state?.from?.pathname
-
-      const canRedirectToFrom =
-        typeof fromPath === 'string' &&
-        (
-          (
-            user.role === 'admin' &&
-            (fromPath === '/admin' || fromPath.startsWith('/admin/'))
-          ) ||
-          (
-            user.role === 'user' &&
-            (fromPath === '/user' || fromPath.startsWith('/user/'))
-          )
-        )
-
-      const destination = canRedirectToFrom
-        ? fromPath
-        : defaultDestination
-
-      navigate(destination, { replace: true })
+      navigate(
+        getPostLoginPath(user.role, location.state?.from?.pathname),
+        { replace: true }
+      )
     } catch (error) {
-      if (error.response?.data?.errors?.some((item) => item.code === 'EMAIL_NOT_VERIFIED')) {
+      const { message, codes, fieldErrors } = normalizeServerErrors(
+        error,
+        'Terjadi kesalahan saat login'
+      )
+
+      if (codes.includes('EMAIL_NOT_VERIFIED')) {
         navigate('/verify-email', { state: { email: values.email } })
         return
       }
-      toast.error(
-        error.response?.data?.message || 'Terjadi kesalahan saat login'
-      )
+
+      if (applyFieldErrors(fieldErrors, setError, LOGIN_FIELDS)) return
+
+      toast.error(message)
     } finally {
       authLockRef.current = false
     }
@@ -145,53 +132,31 @@ function LoginPage() {
 
       toast.success('Login dengan Google berhasil')
 
-      const defaultDestination =
-        user.role === 'admin'
-          ? '/admin/dashboard'
-          : '/user/dashboard'
-
-      const fromPath = location.state?.from?.pathname
-
-      const canRedirectToFrom =
-        typeof fromPath === 'string' &&
-        (
-          (
-            user.role === 'admin' &&
-            (fromPath === '/admin' || fromPath.startsWith('/admin/'))
-          ) ||
-          (
-            user.role === 'user' &&
-            (fromPath === '/user' || fromPath.startsWith('/user/'))
-          )
-        )
-
       navigate(
-        canRedirectToFrom ? fromPath : defaultDestination,
+        getPostLoginPath(user.role, location.state?.from?.pathname),
         { replace: true }
       )
     } catch (error) {
-      const errorCode = error.response?.data?.errors?.[0]?.code
+      if (error.code === 'ERR_CANCELED') return
 
-      if (errorCode === 'GOOGLE_ACCOUNT_LINK_REQUIRED') {
+      const { message, codes } = normalizeServerErrors(
+        error,
+        'Terjadi kesalahan saat login dengan Google'
+      )
+
+      if (codes.includes('GOOGLE_ACCOUNT_LINK_REQUIRED')) {
         toast.error(
           'Email sudah terdaftar. Masuk menggunakan password terlebih dahulu.'
         )
         return
       }
 
-      if (errorCode === 'GOOGLE_EMAIL_VERIFICATION_REQUIRED') {
-        toast.error(
-          'Alamat email Google memerlukan verifikasi tambahan.'
-        )
+      if (codes.includes('GOOGLE_EMAIL_VERIFICATION_REQUIRED')) {
+        toast.error('Alamat email Google memerlukan verifikasi tambahan.')
         return
       }
 
-      if (error.code === 'ERR_CANCELED') return
-
-      toast.error(
-        error.response?.data?.message ||
-        'Terjadi kesalahan saat login dengan Google'
-      )
+      toast.error(message)
     } finally {
       setGooglePending(false)
       authLockRef.current = false
