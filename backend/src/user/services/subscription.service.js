@@ -188,20 +188,26 @@ export const getSubscriptionCatalog = async (userId) => {
         })
 
     return {
-      // Pertahankan seluruh mapping katalog lama.
       id: String(row.id),
       name: row.name,
       slug: row.slug,
       description: row.description,
       price: Number(row.price),
+
       duration: row.slug === 'free'
         ? null
         : {
             value: Number(row.duration_value),
             unit: row.duration_unit,
           },
+
       level: Number(row.level),
       isActive: row.is_active,
+
+      // Benefit hanya untuk informasi tampilan.
+      features: Array.isArray(row.features)
+        ? row.features
+        : [],
 
       isCurrentTier:
         currentTier !== null &&

@@ -75,7 +75,7 @@ function SubscriptionContent({ userId }) {
         }
         closeDokuCheckout()
         queryClient.invalidateQueries({
-            queryKey: ['subscription-catalog'],
+            queryKey: ['user-subscription-catalog', userId],
         })
         navigate(
             `/user/payment/success?paymentId=${encodeURIComponent(paymentId)}`,

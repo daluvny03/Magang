@@ -10,6 +10,7 @@ import {
   createSubscriptionTier,
   updateSubscriptionTier,
   updateSubscriptionTierStatus,
+  replaceSubscriptionTierFeatures,
   withSubscriptionTierTransaction
 } from '../repositories/admin-subscription.repository.js';
 
@@ -40,6 +41,76 @@ const normalizeName = (value) => {
   }
 
   return name;
+};
+
+const normalizeFeatures = (value) => {
+  if (!Array.isArray(value)) {
+    throw new AppError(
+      'Features must be an array',
+      400,
+      'INVALID_TIER_FEATURES'
+    );
+  }
+
+  if (value.length > 30) {
+    throw new AppError(
+      'A tier cannot have more than 30 features',
+      400,
+      'TOO_MANY_TIER_FEATURES'
+    );
+  }
+
+  const features = value.map((item) => {
+    if (
+      !isPlainObject(item) ||
+      Object.keys(item).some(
+        (key) => key !== 'featureText'
+      )
+    ) {
+      throw new AppError(
+        'Each feature must contain only featureText',
+        400,
+        'INVALID_TIER_FEATURE'
+      );
+    }
+
+    if (typeof item.featureText !== 'string') {
+      throw new AppError(
+        'Feature text must be a string',
+        400,
+        'INVALID_TIER_FEATURE'
+      );
+    }
+
+    const featureText = item.featureText.trim();
+
+    if (!featureText || featureText.length > 200) {
+      throw new AppError(
+        'Feature text must contain 1 to 200 characters',
+        400,
+        'INVALID_TIER_FEATURE'
+      );
+    }
+
+    return featureText;
+  });
+
+  const normalizedFeatures = features.map(
+    (feature) => feature.toLowerCase()
+  );
+
+  if (
+    new Set(normalizedFeatures).size !==
+    normalizedFeatures.length
+  ) {
+    throw new AppError(
+      'Duplicate features are not allowed',
+      400,
+      'DUPLICATE_TIER_FEATURE'
+    );
+  }
+
+  return features;
 };
 
 const normalizeSlug = (value) => {
@@ -229,6 +300,7 @@ const mapTier = (row) => ({
       },
   level: row.level,
   isActive: row.is_active,
+  features: row.features ?? [],
   createdAt: row.created_at,
   updatedAt: row.updated_at
 });
@@ -263,7 +335,8 @@ const normalizeTierInput = (payload, isCreate = false) => {
       'price',
       'duration',
       'level',
-      'inheritedTierIds'
+      'inheritedTierIds',
+      'features'
     ]
   : [
       'name',
@@ -271,7 +344,8 @@ const normalizeTierInput = (payload, isCreate = false) => {
       'price',
       'duration',
       'level',
-      'inheritedTierIds'
+      'inheritedTierIds',
+      'features'
     ];
 
   const required = isCreate
@@ -301,33 +375,50 @@ const normalizeTierInput = (payload, isCreate = false) => {
     );
 
     return {
-    name: normalizeName(payload.name),
+  name: normalizeName(payload.name),
 
-    ...(isCreate
-        ? { slug: normalizeSlug(payload.slug) }
-        : {}),
+  ...(isCreate
+    ? { slug: normalizeSlug(payload.slug) }
+    : {}),
 
-    description: payload.description?.trim() || null,
+  description: payload.description?.trim() || null,
 
-    price: normalizePrice(payload.price),
+  price: normalizePrice(payload.price),
 
-    ...duration,
+  ...duration,
 
-    level: normalizePositiveInteger(
-        payload.level,
-        'Level'
-    ),
+  level: normalizePositiveInteger(
+    payload.level,
+    'Level'
+  ),
 
-    ...(isCreate || hasInheritedTierIds
-        ? {
-            inheritedTierIds: normalizeInheritedTierIds(
-            hasInheritedTierIds
-                ? payload.inheritedTierIds
-                : []
-            )
+  ...(isCreate || hasInheritedTierIds
+    ? {
+        inheritedTierIds: normalizeInheritedTierIds(
+          hasInheritedTierIds
+            ? payload.inheritedTierIds
+            : []
+        )
+      }
+    : {}),
+
+  ...(isCreate
+    ? {
+        features: normalizeFeatures(
+          payload.features ?? []
+        )
+      }
+    : Object.prototype.hasOwnProperty.call(
+        payload,
+        'features'
+      )
+      ? {
+          features: normalizeFeatures(
+            payload.features
+          )
         }
-        : {})
-    };
+      : {})
+};
 };
 
 const ensureEditableTier = (tier) => {
@@ -553,18 +644,32 @@ export const createAdminSubscriptionTier = async (payload) => {
           client
         );
 
+        await replaceSubscriptionTierFeatures(
+          tier.id,
+          input.features,
+          client
+        );
+
         await replaceTierInheritances(
           tier.id,
           input.inheritedTierIds,
           client
         );
 
-        const inheritedTiers = await findDirectInheritedTiers(
-        tier.id,
-        client
+        const completeTier = await findSubscriptionTierById(
+          tier.id,
+          client
         );
 
-        return attachInheritance(tier, inheritedTiers);
+        const inheritedTiers = await findDirectInheritedTiers(
+          tier.id,
+          client
+        );
+
+        return attachInheritance(
+          completeTier,
+          inheritedTiers
+        );
       }
     );
   } catch (error) {
@@ -625,6 +730,14 @@ export const updateAdminSubscriptionTier = async (
           client
         );
 
+        if (input.features !== undefined) {
+          await replaceSubscriptionTierFeatures(
+            tierId,
+            input.features,
+            client
+          );
+        }
+
         if (!updated) {
           throw new AppError(
             'Subscription tier could not be updated',
@@ -641,12 +754,20 @@ export const updateAdminSubscriptionTier = async (
           );
         }
 
-        const inheritedTiers = await findDirectInheritedTiers(
-        tierId,
-        client
+        const completeTier = await findSubscriptionTierById(
+          tierId,
+          client
         );
 
-        return attachInheritance(updated, inheritedTiers);
+        const inheritedTiers = await findDirectInheritedTiers(
+          tierId,
+          client
+        );
+
+        return attachInheritance(
+          completeTier,
+          inheritedTiers
+        );
       }
     );
   } catch (error) {
@@ -669,29 +790,61 @@ export const changeAdminSubscriptionTierStatus = async (
   }
 
   const tierId = parseId(id);
-  const existing = await findSubscriptionTierById(tierId);
 
-  if (!existing) {
-    throw new AppError(
-      'Subscription tier not found',
-      404,
-      'SUBSCRIPTION_TIER_NOT_FOUND'
-    );
-  }
+  return withSubscriptionTierTransaction(
+    async (client) => {
+      await lockSubscriptionHierarchy(client);
 
-  ensureEditableTier(existing);
+      const existing = await findSubscriptionTierById(
+        tierId,
+        client
+      );
 
-  const updated = await updateSubscriptionTierStatus(
-    tierId,
-    payload.isActive
+      if (!existing) {
+        throw new AppError(
+          'Subscription tier not found',
+          404,
+          'SUBSCRIPTION_TIER_NOT_FOUND'
+        );
+      }
+
+      ensureEditableTier(existing);
+
+      const updated = await client.query(
+        `
+          UPDATE subscription_tiers
+          SET
+            is_active = $2,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+            AND slug <> 'free'
+          RETURNING id
+        `,
+        [tierId, payload.isActive]
+      );
+
+      if (updated.rows.length === 0) {
+        throw new AppError(
+          'Subscription tier could not be updated',
+          409,
+          'SUBSCRIPTION_TIER_UPDATE_CONFLICT'
+        );
+      }
+
+      const completeTier = await findSubscriptionTierById(
+        tierId,
+        client
+      );
+
+      const inheritedTiers = await findDirectInheritedTiers(
+        tierId,
+        client
+      );
+
+      return attachInheritance(
+        completeTier,
+        inheritedTiers
+      );
+    }
   );
-
-    const inheritedTiers = await findDirectInheritedTiers(
-    tierId
-    );
-
-    return attachInheritance(
-    updated,
-    inheritedTiers
-    );
 };

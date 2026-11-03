@@ -18,9 +18,25 @@ const TIER_COLUMNS = `
 
 export const findAllSubscriptionTiers = async () => {
   const { rows } = await pool.query(`
-    SELECT ${TIER_COLUMNS}
-    FROM subscription_tiers
-    ORDER BY level ASC, id ASC
+    SELECT
+      ${TIER_COLUMNS},
+      COALESCE(
+        (
+          SELECT json_agg(
+            json_build_object(
+              'id', stf.id,
+              'featureText', stf.feature_text,
+              'sortOrder', stf.sort_order
+            )
+            ORDER BY stf.sort_order ASC, stf.id ASC
+          )
+          FROM subscription_tier_features stf
+          WHERE stf.subscription_tier_id = st.id
+        ),
+        '[]'::json
+      ) AS features
+    FROM subscription_tiers st
+    ORDER BY st.level ASC, st.id ASC
   `);
 
   return rows;
@@ -32,16 +48,79 @@ export const findSubscriptionTierById = async (
 ) => {
   const { rows } = await client.query(
     `
-      SELECT ${TIER_COLUMNS}
-      FROM subscription_tiers
-      WHERE id = $1
+      SELECT
+        ${TIER_COLUMNS},
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'id', stf.id,
+                'featureText', stf.feature_text,
+                'sortOrder', stf.sort_order
+              )
+              ORDER BY stf.sort_order ASC, stf.id ASC
+            )
+            FROM subscription_tier_features stf
+            WHERE stf.subscription_tier_id = st.id
+          ),
+          '[]'::json
+        ) AS features
+      FROM subscription_tiers st
+      WHERE st.id = $1
       LIMIT 1
     `,
     [id]
-  )
+  );
 
-  return rows[0] || null
-}
+  return rows[0] || null;
+};
+
+export const replaceSubscriptionTierFeatures = async (
+  tierId,
+  features,
+  client = pool
+) => {
+  await client.query(
+    `
+      DELETE FROM subscription_tier_features
+      WHERE subscription_tier_id = $1
+    `,
+    [tierId]
+  );
+
+  if (features.length === 0) {
+    return [];
+  }
+
+  const { rows } = await client.query(
+    `
+      INSERT INTO subscription_tier_features (
+        subscription_tier_id,
+        feature_text,
+        sort_order
+      )
+      SELECT
+        $1,
+        feature.feature_text,
+        (feature.ordinality - 1)::integer
+      FROM unnest($2::text[])
+        WITH ORDINALITY AS feature(
+          feature_text,
+          ordinality
+        )
+      RETURNING
+        id,
+        feature_text AS "featureText",
+        sort_order AS "sortOrder"
+    `,
+    [
+      tierId,
+      features
+    ]
+  );
+
+  return rows;
+};
 
 export const createSubscriptionTier = async (
   {

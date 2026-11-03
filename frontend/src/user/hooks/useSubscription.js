@@ -45,9 +45,14 @@ export const useSubscription = () => {
   }
 }
 
+
 export const useSubscriptionCatalog = () => {
+  const userId = useAuthStore((state) => state.user?.id)
+
   return useQuery({
-    queryKey: ['user-subscription-catalog'],
+    queryKey: ['user-subscription-catalog', userId],
     queryFn: getSubscriptionCatalog,
+    enabled: Boolean(userId),
   })
 }
+

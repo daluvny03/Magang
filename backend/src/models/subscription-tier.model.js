@@ -7,6 +7,7 @@ export const createSubscriptionTierModel = ({
   durationDays,
   level,
   isActive,
+  features = [],
   createdAt,
   updatedAt
 }) => ({
@@ -18,6 +19,7 @@ export const createSubscriptionTierModel = ({
   durationDays,
   level,
   isActive,
+  features,
   createdAt,
   updatedAt
 });

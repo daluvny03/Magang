@@ -1,6 +1,6 @@
 import { useModalFocus } from '../../hooks/useModalFocus'
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Plus, Trash2 } from 'lucide-react'
 
 const DURATION_OPTIONS = [
     { value: 'day', label: 'Hari' },
@@ -20,6 +20,11 @@ const getInitialValues = (tier) => ({
     durationUnit: tier?.duration?.unit || 'month',
     level: tier?.level != null ? String(tier.level) : '',
     inheritedTierIds: (tier?.inheritedTierIds || []).map(String),
+    features: (tier?.features || []).map((feature) =>
+        typeof feature === 'string'
+            ? feature
+            : feature.featureText || ''
+    ),
 })
 
 function SubscriptionFormModal({
@@ -105,9 +110,86 @@ function SubscriptionFormModal({
 
         setServerError('')
     }
+    const handleFeatureChange = (index, value) => {
+        setValues((prev) => ({
+            ...prev,
+            features: prev.features.map((feature, i) =>
+                i === index ? value : feature
+            ),
+        }))
+
+        setErrors((prev) => ({
+            ...prev,
+            features: undefined,
+        }))
+
+        setServerError('')
+    }
+
+    const handleAddFeature = () => {
+        if (values.features.length >= 30) {
+            setErrors((prev) => ({
+                ...prev,
+                features: 'Maksimal 30 benefit untuk setiap paket.',
+            }))
+            return
+        }
+
+        setValues((prev) => ({
+            ...prev,
+            features: [...prev.features, ''],
+        }))
+
+        setErrors((prev) => ({
+            ...prev,
+            features: undefined,
+        }))
+    }
+
+    const handleRemoveFeature = (index) => {
+        setValues((prev) => ({
+            ...prev,
+            features: prev.features.filter(
+                (_, i) => i !== index
+            ),
+        }))
+
+        setErrors((prev) => ({
+            ...prev,
+            features: undefined,
+        }))
+    }
+
 
     const validate = () => {
         const nextErrors = {}
+        const normalizedFeatures = values.features.map(
+            (feature) => feature.trim()
+        )
+        if (normalizedFeatures.length > 30) {
+            nextErrors.features =
+                'Maksimal 30 benefit untuk setiap paket.'
+        }
+        if (normalizedFeatures.some((feature) => !feature)) {
+            nextErrors.features =
+                'Semua benefit harus diisi atau dihapus.'
+        }
+        if (
+            normalizedFeatures.some((feature) => feature.length > 200)
+        ) {
+            nextErrors.features =
+                'Setiap benefit maksimal 200 karakter.'
+        }
+        const uniqueFeatures = normalizedFeatures
+            .filter(Boolean)
+            .map((feature) => feature.toLowerCase())
+
+        if (
+            new Set(uniqueFeatures).size !== uniqueFeatures.length
+        ) {
+            nextErrors.features =
+                'Benefit tidak boleh duplikat.'
+        }
 
         const name = values.name.trim()
         const slug = values.slug.trim()
@@ -116,9 +198,9 @@ function SubscriptionFormModal({
         const level = Number(values.level)
 
         if (!name || name.length > 100) {
-            nextErrors.name = 'Nama wajib diisi, maksimal 100 karakter.'
+            nextErrors.name =
+                'Nama wajib diisi, maksimal 100 karakter.'
         }
-
         if (
             !isEdit &&
             !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
@@ -126,11 +208,9 @@ function SubscriptionFormModal({
             nextErrors.slug =
                 'Slug hanya boleh huruf kecil, angka, dan tanda hubung.'
         }
-
         if (!isEdit && slug.length > 100) {
             nextErrors.slug = 'Slug maksimal 100 karakter.'
         }
-
         if (
             values.price.trim() === '' ||
             !Number.isSafeInteger(price) ||
@@ -140,7 +220,6 @@ function SubscriptionFormModal({
             nextErrors.price =
                 'Harga harus bilangan bulat antara 0 dan 999999999999.'
         }
-
         if (
             values.durationValue.trim() === '' ||
             !Number.isSafeInteger(durationValue) ||
@@ -177,9 +256,7 @@ function SubscriptionFormModal({
         const validIds = new Set(
             eligibleTiers.map((item) => String(item.id))
         )
-
         const selectedIds = values.inheritedTierIds
-
         if (
             new Set(selectedIds).size !== selectedIds.length ||
             selectedIds.some((id) => !validIds.has(id))
@@ -212,6 +289,9 @@ function SubscriptionFormModal({
             },
             level: Number(values.level),
             inheritedTierIds: values.inheritedTierIds,
+            features: values.features.map((featureText) => ({
+                featureText: featureText.trim(),
+            })),
         }
 
         if (!isEdit) {
@@ -354,6 +434,102 @@ function SubscriptionFormModal({
                             className={inputClass}
                             placeholder="Deskripsi fitur subscription..."
                         />
+                    </div>
+
+                    <div className="space-y-3 rounded-xl border border-gray-200 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-900">
+                                    Fitur dan Benefit Paket
+                                </h3>
+
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Tentukan keuntungan yang akan ditampilkan
+                                    kepada pengguna pada halaman subscription.
+                                </p>
+                            </div>
+
+                            <span className="shrink-0 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                                {values.features.length}/30
+                            </span>
+                        </div>
+
+                        {values.features.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-gray-300 p-4 text-center">
+                                <p className="text-sm text-gray-500">
+                                    Belum ada benefit untuk paket ini.
+                                </p>
+
+                                <p className="mt-1 text-xs text-gray-400">
+                                    Tambahkan benefit agar pengguna mengetahui
+                                    keuntungan paket yang ditawarkan.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {values.features.map((feature, index) => (
+                                    <div
+                                        key={index}
+                                        className="flex items-start gap-2"
+                                    >
+                                        <div className="flex h-10 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-xs font-semibold text-gray-600">
+                                            {index + 1}
+                                        </div>
+
+                                        <div className="min-w-0 flex-1">
+                                            <input
+                                                type="text"
+                                                value={feature}
+                                                onChange={(event) =>
+                                                    handleFeatureChange(
+                                                        index,
+                                                        event.target.value
+                                                    )
+                                                }
+                                                maxLength={200}
+                                                disabled={isSubmitting}
+                                                placeholder="Contoh: Akses seluruh paket tryout"
+                                                aria-label={`Benefit ${index + 1}`}
+                                                className={inputClass}
+                                            />
+
+                                            <p className="mt-1 text-right text-xs text-gray-400">
+                                                {feature.length}/200
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                handleRemoveFeature(index)
+                                            }
+                                            disabled={isSubmitting}
+                                            aria-label={`Hapus benefit ${index + 1}`}
+                                            title="Hapus benefit"
+                                            className="rounded-lg p-2 text-red-500 hover:bg-red-50 disabled:opacity-50"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {errors.features && (
+                            <p role="alert" className="text-xs text-red-600">
+                                {errors.features}
+                            </p>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={handleAddFeature}
+                            disabled={isSubmitting || values.features.length >= 30}
+                            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-primary-300 px-3 py-2.5 text-sm font-medium text-primary-600 transition hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <Plus size={17} />
+                            Tambah Benefit
+                        </button>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
