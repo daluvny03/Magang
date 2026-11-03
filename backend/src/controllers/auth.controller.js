@@ -6,6 +6,7 @@ import {
 import {
   loginOrRegisterWithGoogle
 } from '../services/google-auth.service.js';
+import { getProfileByUserId } from '../user/services/profile.service.js';
 
 export const register = async (req, res, next) => {
   try {
@@ -39,11 +40,13 @@ export const login = async (req, res, next) => {
 
 export const getMe = async (req, res, next) => {
   try {
+    const user = await getProfileByUserId(req.user.id);
+
     return res.status(200).json({
       success: true,
       message: 'Authenticated user retrieved successfully',
       data: {
-        user: req.user
+        user
       }
     });
   } catch (error) {
