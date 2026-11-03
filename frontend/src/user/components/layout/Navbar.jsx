@@ -1,53 +1,56 @@
-import { LogOut, Menu } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import { Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 
-import { useAuthStore } from '../../../stores/authStore'
+import { getRouteInfo } from '@/user/constants/navigation'
 
-function Navbar({ onMenuClick }) {
-  const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
+import AccountMenu from './AccountMenu'
 
-  const displayName = user?.name || 'User'
-  const initial = displayName.charAt(0).toUpperCase()
+const iconButton =
+  'focus-ring h-11 w-11 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+
+function Navbar({ collapsed, onToggleSidebar, onOpenMobile }) {
+  const { pathname } = useLocation()
+  const { title, parent } = getRouteInfo(pathname)
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-gray-100 bg-white/90 px-4 backdrop-blur lg:px-6">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
+      <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-2 px-4 sm:px-6 lg:px-8">
         <button
           type="button"
-          aria-label="Toggle sidebar"
-          onClick={onMenuClick}
-          className="rounded-lg p-2 text-gray-600 transition hover:bg-primary-50 hover:text-primary-700"
+          onClick={onOpenMobile}
+          aria-label="Buka menu"
+          className={`${iconButton} flex lg:hidden`}
         >
-          <Menu size={22} />
+          <Menu size={22} aria-hidden="true" />
         </button>
-      </div>
-
-      <div className="flex items-center gap-3 sm:gap-4">
-        <div className="hidden text-right sm:block">
-          <p className="text-sm font-medium text-gray-900">
-            {displayName}
-          </p>
-
-          <p className="text-xs capitalize text-gray-500">
-            {user?.role || 'user'}
-          </p>
-        </div>
-
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-500 text-sm font-semibold text-white">
-          {initial}
-        </div>
 
         <button
           type="button"
-          onClick={logout}
-          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-600 transition hover:bg-primary-50 hover:text-primary-700"
+          onClick={onToggleSidebar}
+          aria-label={collapsed ? 'Perluas menu' : 'Ciutkan menu'}
+          aria-expanded={!collapsed}
+          className={`${iconButton} hidden lg:flex`}
         >
-          <LogOut size={18} />
-
-          <span className="hidden md:inline">
-            Logout
-          </span>
+          {collapsed ? (
+            <PanelLeftOpen size={22} aria-hidden="true" />
+          ) : (
+            <PanelLeftClose size={22} aria-hidden="true" />
+          )}
         </button>
+
+        <div className="min-w-0">
+          <p className="truncate text-[16px] font-bold leading-tight text-foreground">
+            {title}
+          </p>
+
+          <p className="hidden truncate text-[13px] text-muted-foreground sm:block">
+            {parent ? `${parent} / ${title}` : 'Halobakat · Latihan Tryout'}
+          </p>
+        </div>
+
+        <div className="ml-auto">
+          <AccountMenu />
+        </div>
       </div>
     </header>
   )
