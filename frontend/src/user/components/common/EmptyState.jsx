@@ -6,7 +6,7 @@ function EmptyState({ icon: Icon, title, description, action, className = '' }) 
       {Icon && (
         <span
           aria-hidden="true"
-          className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 text-primary-700"
+          className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-600"
         >
           <Icon size={28} />
         </span>
