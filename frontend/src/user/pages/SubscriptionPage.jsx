@@ -1,19 +1,27 @@
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, Crown, RefreshCw } from 'lucide-react'
+
+import EmptyState from '@/user/components/common/EmptyState'
+import PageHeader from '@/user/components/common/PageHeader'
+import Surface from '@/user/components/common/Surface'
+import { Skeleton } from '@/user/components/common/Skeletons'
+import { buttonClass } from '@/user/components/common/buttonStyles'
 
 import SubscriptionCard from '../components/subscription/SubscriptionCard'
-import { useNavigate } from 'react-router-dom'
+import CurrentSubscriptionCard from '../components/subscription/CurrentSubscriptionCard'
+import CheckoutNotices from '../components/subscription/CheckoutNotices'
 import {
     useSubscription,
     useSubscriptionCatalog,
 } from '../hooks/useSubscription'
-import { useState, useEffect, useRef } from 'react'
 import {
     useCreateSubscriptionCheckout,
     usePaymentDetail,
 } from '../hooks/usePayment'
 import { openDokuCheckout, closeDokuCheckout } from '../utils/doku-checkout'
 import { useAuthStore } from '../../stores/authStore'
-import { useQueryClient } from '@tanstack/react-query'
-import { formatSubscriptionDate as formatDate } from '../utils/subscription-date'
 
 const readPaymentId = (key) => {
     if (!key) return null
@@ -23,6 +31,29 @@ const readPaymentId = (key) => {
     } catch {
         return null
     }
+}
+
+function SubscriptionSkeleton() {
+    return (
+        <div role="status" className="mx-auto w-full max-w-6xl space-y-8">
+            <Skeleton className="h-16 w-80" />
+            <Skeleton className="h-32 w-full rounded-2xl" />
+
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {[1, 2, 3].map((item) => (
+                    <Surface key={item} className="space-y-4 p-6">
+                        <Skeleton className="h-6 w-32" />
+                        <Skeleton className="h-9 w-40" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-5/6" />
+                        <Skeleton className="h-12 w-full rounded-xl" />
+                    </Surface>
+                ))}
+            </div>
+
+            <span className="sr-only">Memuat informasi langganan...</span>
+        </div>
+    )
 }
 
 function SubscriptionPage() {
@@ -165,25 +196,30 @@ function SubscriptionContent({ userId }) {
     const catalogQuery = useSubscriptionCatalog()
     const subscriptionQuery = useSubscription()
 
-    if (
-        catalogQuery.isLoading ||
-        subscriptionQuery.isLoading
-    ) {
-        return (
-            <div className="p-6 text-gray-500">
-                Memuat informasi langganan...
-            </div>
-        )
+    if (catalogQuery.isLoading || subscriptionQuery.isLoading) {
+        return <SubscriptionSkeleton />
     }
 
-    if (
-        catalogQuery.isError ||
-        subscriptionQuery.isError
-    ) {
+    if (catalogQuery.isError || subscriptionQuery.isError) {
         return (
-            <div className="p-6 text-red-600">
-                Gagal memuat informasi langganan.
-            </div>
+            <EmptyState
+                icon={AlertCircle}
+                title="Informasi Langganan Tidak Tersedia"
+                description="Gagal memuat informasi langganan."
+                action={
+                    <button
+                        type="button"
+                        onClick={() => {
+                            catalogQuery.refetch()
+                            subscriptionQuery.refetch()
+                        }}
+                        className={buttonClass.solid}
+                    >
+                        <RefreshCw size={16} aria-hidden="true" />
+                        Coba Lagi
+                    </button>
+                }
+            />
         )
     }
 
@@ -195,121 +231,72 @@ function SubscriptionContent({ userId }) {
         subscription?.tier?.slug !== 'free' &&
         Boolean(subscription?.tier)
 
-    return (
-        <div className="mx-auto max-w-5xl p-6">
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold">
-                    Paket Langganan
-                </h1>
-                <p className="mt-2 text-gray-500">
-                    Pilih paket untuk mengakses latihan CAT CPNS.
-                </p>
-            </div>
+    const needsReview =
+        payment?.status === 'paid' &&
+        !payment?.appliedAt &&
+        payment?.applicationReviewStatus === 'needs_review'
 
-            <div className="mb-8 rounded-xl border border-gray-200 bg-white p-5">
-                <h2 className="font-semibold">
-                    Langganan Saya
+    return (
+        <div className="mx-auto w-full max-w-6xl space-y-8">
+            <PageHeader
+                eyebrow="Subscription"
+                title="Paket Langganan"
+                subtitle="Pilih paket untuk mengakses latihan CAT CPNS."
+            />
+
+            <CurrentSubscriptionCard
+                subscription={subscription}
+                hasActivePaid={hasActivePaidSubscription}
+            />
+
+            <CheckoutNotices
+                storageWarning={storageWarning}
+                needsReview={needsReview}
+                paymentId={paymentId}
+                checkoutError={checkoutError}
+                hasMutationError={checkoutMutation.isError}
+            />
+
+            <section
+                id="daftar-paket"
+                aria-labelledby="plans-title"
+                className="scroll-mt-20 space-y-5"
+            >
+                <h2 id="plans-title" className="text-[19px] font-bold text-foreground">
+                    Pilih Paket
                 </h2>
 
-                {hasActivePaidSubscription ? (
-                    <div className="mt-3 space-y-2 text-sm">
-                        <p className="font-medium text-blue-600">
-                            {subscription.tier.name} Aktif
-                        </p>
-                        <p>
-                            Tanggal aktivasi:{' '}
-                            {formatDate(subscription.startedAt)}
-                        </p>
-                        <p>
-                            Berlaku sampai:{' '}
-                            {formatDate(subscription.expiredAt)}
-                        </p>
-                    </div>
+                {tiers.length === 0 ? (
+                    <EmptyState
+                        icon={Crown}
+                        title="Paket langganan belum tersedia"
+                        description="Paket langganan akan muncul di sini."
+                    />
                 ) : (
-                    <p className="mt-3 text-sm text-gray-600">
-                        Anda sedang menggunakan paket Free.
-                    </p>
-                )}
-            </div>
-
-            {tiers.length === 0 ? (
-                <p className="text-gray-500">
-                    Paket langganan belum tersedia.
-                </p>
-            ) : (
-                <div className="grid gap-6 md:grid-cols-2">
-                    {tiers.map((tier) => (
-                        <SubscriptionCard
-                            key={tier.id}
-                            tier={tier}
-                            isCurrentPlan={
-                                hasActivePaidSubscription
-                                    ? String(subscription.tier.id) ===
-                                    String(tier.id)
-                                    : tier.slug === 'free'
-                            }
-                            purchaseAction={tier.purchaseAction}
-                            isPurchasable={tier.isPurchasable}
-                            purchaseBlockReason={tier.purchaseBlockReason}
-                            onCheckout={() => handleCheckout(tier)}
-                            isCheckoutLoading={
-                                checkoutMutation.isPending ||
-                                isOpeningCheckout
-                            }
-                        />
-                    ))}
-                </div>
-            )}
-
-            {storageWarning && (
-                <p role="alert" className="mt-6 text-sm text-amber-800">
-                    {storageWarning}
-                </p>
-            )}
-
-            {payment?.status === 'paid' &&
-                !payment?.appliedAt &&
-                payment?.applicationReviewStatus === 'needs_review' && (
-                    <div
-                        role="alert"
-                        className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4"
-                    >
-                        <p className="text-sm font-semibold text-amber-900">
-                            Pembayaran diterima, aktivasi perlu pemeriksaan
-                        </p>
-
-                        <p className="mt-2 text-sm text-amber-800">
-                            Pembayaran kamu sudah diterima, tetapi subscription
-                            belum dapat diaktifkan secara otomatis.
-                            Simpan nomor transaksi dan hubungi administrator
-                            untuk pemeriksaan lebih lanjut.
-                        </p>
-
-                        <p className="mt-2 text-xs text-amber-800">
-                            ID Pembayaran: {paymentId}
-                        </p>
+                    <div className="grid gap-6 pt-3 md:grid-cols-2 xl:grid-cols-3">
+                        {tiers.map((tier) => (
+                            <SubscriptionCard
+                                key={tier.id}
+                                tier={tier}
+                                isCurrentPlan={
+                                    hasActivePaidSubscription
+                                        ? String(subscription.tier.id) ===
+                                        String(tier.id)
+                                        : tier.slug === 'free'
+                                }
+                                purchaseAction={tier.purchaseAction}
+                                isPurchasable={tier.isPurchasable}
+                                purchaseBlockReason={tier.purchaseBlockReason}
+                                onCheckout={() => handleCheckout(tier)}
+                                isCheckoutLoading={
+                                    checkoutMutation.isPending ||
+                                    isOpeningCheckout
+                                }
+                            />
+                        ))}
                     </div>
                 )}
-
-            {checkoutError && (
-                <div
-                    role="alert"
-                    className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
-                >
-                    {checkoutError}
-                </div>
-            )}
-
-            {checkoutMutation.isError && (
-                <p
-                    role="alert"
-                    className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
-                >
-                    Gagal menyiapkan transaksi pembayaran.
-                </p>
-            )}
-
-
+            </section>
         </div>
     )
 }
