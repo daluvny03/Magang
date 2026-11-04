@@ -38,6 +38,17 @@ const createInsight = ({
   }
 
   const isTKP = question.categorySlug === 'tkp'
+  const isAnswered =
+    question.selectedAnswer !== null &&
+    question.selectedAnswer !== undefined
+
+  if (status === 'relatively_slow' && !isAnswered) {
+    return {
+      code: 'SLOW_UNANSWERED',
+      message:
+        'Waktu pengerjaan relatif tinggi, tetapi soal belum dijawab. Perhatikan strategi alokasi waktu ujian.',
+    }
+  }
 
   if (status === 'relatively_slow') {
     if (isTKP) {
@@ -248,6 +259,15 @@ export const buildAttemptTimeAnalysis = (
       (item) => item.status === 'relatively_slow'
     ).length
 
+  const questionsWithValidTime = categories.reduce(
+    (sum, category) => sum + category.validTimeCount,
+    0
+  )
+  const recordedTimeSeconds = categories.reduce(
+    (sum, category) => sum + category.recordedTimeSeconds,
+    0
+  )
+
   return {
     rules: {
       minSamples: TIME_RULES.minSamples,
@@ -256,13 +276,11 @@ export const buildAttemptTimeAnalysis = (
     },
     summary: {
       totalQuestions: questionList.length,
-      questionsWithValidTime:
-        categories.reduce(
-          (sum, category) =>
-            sum + category.validTimeCount,
-          0
-        ),
+      questionsWithValidTime,
       slowQuestionCount,
+      averageTimeSeconds: questionsWithValidTime > 0
+        ? round(recordedTimeSeconds / questionsWithValidTime)
+        : null,
     },
     categories,
     questionInsights,

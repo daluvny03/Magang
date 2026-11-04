@@ -1,5 +1,7 @@
 import { Router } from 'express'
-
+import {
+  getLearningRecommendations,
+} from '../controllers/learning-recommendation.controller.js'
 import {
   getAttemptQuestions,
 } from '../controllers/attempt-questions.controller.js'
@@ -61,6 +63,11 @@ router.get(
 router.get(
   '/statistics',
   getAttemptStatistics
+)
+
+router.get(
+  '/recommendations',
+  getLearningRecommendations
 )
 
 router.get(
