@@ -1,45 +1,72 @@
-import TryoutPassingRules from '../components/tryout/TryoutPassingRules'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AlertCircle, ArrowLeft, RefreshCw, SearchX } from 'lucide-react'
+
 import { logRequestError } from '../../utils/log-request-error'
-import {
-    ArrowLeft,
-    BookOpen,
-    CheckCircle2,
-    Clock3,
-    Lock,
-    Play,
-    ShieldCheck,
-} from 'lucide-react'
-import {
-    useNavigate,
-    useParams,
-} from 'react-router-dom'
+import EmptyState from '@/user/components/common/EmptyState'
+import Surface from '@/user/components/common/Surface'
+import { Skeleton } from '@/user/components/common/Skeletons'
+import { buttonClass } from '@/user/components/common/buttonStyles'
+import { getTryoutState } from '@/user/utils/tryoutDisplay'
 
 import { useTryoutDetail } from '../hooks/useTryoutDetail'
 import { useStartTryout } from '../hooks/useStartTryout'
-import { hasActiveTryoutAttempt, getTryoutScheduleStatus } from '../utils/tryout-availability'
+import {
+    getTryoutScheduleStatus,
+    hasActiveTryoutAttempt,
+} from '../utils/tryout-availability'
 import { useAuthStore } from '../../stores/authStore'
+import TryoutInfoCard from '../components/tryout/TryoutInfoCard'
+import TryoutScheduleCard from '../components/tryout/TryoutScheduleCard'
+import TryoutStartPanel from '../components/tryout/TryoutStartPanel'
 
-const formatScheduleDate = (value, emptyLabel) => {
-    if (!value) return emptyLabel
+const SCHEDULE_LABELS = {
+    upcoming: 'Belum dimulai',
+    active: 'Periode aktif',
+    ended: 'Periode mulai berakhir',
+}
 
-    const date = new Date(value)
-    if (!Number.isFinite(date.getTime())) return 'Tanggal tidak tersedia'
+function BackLink() {
+    return (
+        <Link
+            to="/user/tryouts"
+            className="focus-ring inline-flex items-center gap-2 rounded-lg text-[14px] font-medium text-muted-foreground transition hover:text-primary-700"
+        >
+            <ArrowLeft size={18} aria-hidden="true" />
+            Kembali ke Tryout
+        </Link>
+    )
+}
 
-    return `${date.toLocaleString('id-ID', {
-        timeZone: 'Asia/Jakarta',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-    })} WIB`
+function DetailSkeleton() {
+    return (
+        <div role="status" className="mx-auto w-full max-w-5xl space-y-5">
+            <Skeleton className="h-6 w-40" />
+
+            <Surface className="overflow-hidden">
+                <Skeleton className="h-28 w-full rounded-none" />
+
+                <div className="space-y-4 p-6">
+                    <Skeleton className="h-8 w-2/3" />
+                    <Skeleton className="h-5 w-full" />
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                        <Skeleton className="h-24" />
+                        <Skeleton className="h-24" />
+                        <Skeleton className="h-24" />
+                    </div>
+                </div>
+            </Surface>
+
+            <Skeleton className="h-48 w-full rounded-2xl" />
+
+            <span className="sr-only">Memuat detail tryout...</span>
+        </div>
+    )
 }
 
 function TryoutDetailPage() {
     const navigate = useNavigate()
-    const startTryoutMutation =
-        useStartTryout()
+    const startTryoutMutation = useStartTryout()
     const { tryoutId } = useParams()
 
     const {
@@ -94,40 +121,55 @@ function TryoutDetailPage() {
     }
 
     if (isLoading) {
-        return (
-            <div className="mx-auto max-w-5xl space-y-5">
-                <div className="h-6 w-32 animate-pulse rounded bg-gray-100" />
-
-                <div className="h-72 animate-pulse rounded-2xl bg-gray-100" />
-
-                <div className="h-64 animate-pulse rounded-2xl bg-gray-100" />
-            </div>
-        )
+        return <DetailSkeleton />
     }
 
     if (isError) {
-        return (
-            <div className="mx-auto max-w-5xl">
-                <button
-                    type="button"
-                    onClick={() => navigate('/user/tryouts')}
-                    className="mb-5 flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-primary-700"
-                >
-                    <ArrowLeft size={17} />
-                    Kembali ke Tryout
-                </button>
+        const status = error?.response?.status
+        const canRetry = ![401, 403, 404].includes(status)
 
-                <div className="rounded-2xl border border-red-100 bg-red-50 p-5">
-                    <p className="text-sm font-medium text-red-700">
-                        {error?.response?.data?.message ||
-                            'Gagal memuat detail tryout.'}
-                    </p>
-                </div>
+        return (
+            <div className="mx-auto w-full max-w-5xl space-y-5">
+                <BackLink />
+
+                <EmptyState
+                    icon={AlertCircle}
+                    title="Detail Tryout Tidak Tersedia"
+                    description={
+                        error?.response?.data?.message ||
+                        'Gagal memuat detail tryout.'
+                    }
+                    action={
+                        canRetry && (
+                            <button
+                                type="button"
+                                onClick={() => refetch()}
+                                className={buttonClass.solid}
+                            >
+                                <RefreshCw size={16} aria-hidden="true" />
+                                Coba Lagi
+                            </button>
+                        )
+                    }
+                />
             </div>
         )
     }
 
-    if (!tryout) return null
+    if (!tryout) {
+        return (
+            <div className="mx-auto w-full max-w-5xl space-y-5">
+                <BackLink />
+
+                <EmptyState
+                    icon={SearchX}
+                    title="Detail Tryout Tidak Tersedia"
+                    description="Informasi tryout ini belum dapat ditampilkan."
+                />
+            </div>
+        )
+    }
+
     const hasActiveAttempt = hasActiveTryoutAttempt(tryout)
     const scheduleStatus = getTryoutScheduleStatus(tryout)
 
@@ -137,294 +179,43 @@ function TryoutDetailPage() {
         !hasActiveAttempt &&
         tryout.isAccessible &&
         scheduleStatus === 'active'
+
     const canStartOrResume = canResume || canStart
-    const scheduleLabel = {
-        upcoming: 'Belum dimulai',
-        active: 'Periode aktif',
-        ended: 'Periode mulai berakhir',
-    }[scheduleStatus] || 'Jadwal belum tersedia'
+
+    const scheduleLabel =
+        SCHEDULE_LABELS[scheduleStatus] || 'Jadwal belum tersedia'
+
+    const startErrorMessage = startTryoutMutation.isError
+        ? startTryoutMutation.error?.response?.data?.message ||
+          'Gagal memulai atau melanjutkan tryout. Silakan coba kembali.'
+        : null
 
     return (
-        <div className="mx-auto max-w-5xl space-y-6">
-            {/* Back */}
-            <button
-                type="button"
-                onClick={() => navigate('/user/tryouts')}
-                className="flex items-center gap-2 text-sm font-medium text-gray-600 transition hover:text-primary-700"
-            >
-                <ArrowLeft size={17} />
-                Kembali ke Tryout
-            </button>
+        <div className="mx-auto w-full max-w-5xl space-y-6">
+            <BackLink />
 
-            {/* Tryout Information */}
-            <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex items-start gap-4">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600">
-                            <BookOpen size={22} />
-                        </div>
+            <TryoutInfoCard
+                tryout={tryout}
+                stateKey={getTryoutState(tryout)}
+            />
 
-                        <div>
-                            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">
-                                {tryout.name}
-                            </h1>
+            <TryoutScheduleCard
+                tryout={tryout}
+                scheduleStatus={scheduleStatus}
+                hasActiveAttempt={hasActiveAttempt}
+            />
 
-                            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
-                                {tryout.description ||
-                                    'Simulasi tryout untuk membantu persiapan seleksi CPNS.'}
-                            </p>
-                        </div>
-                    </div>
-
-                    <span
-                        className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${tryout.isFree
-                            ? 'bg-green-50 text-green-700'
-                            : 'bg-primary-50 text-primary-700'
-                            }`}
-                    >
-                        {hasActiveAttempt
-                            ? 'Ujian Berlangsung'
-                            : tryout.isFree
-                                ? 'Gratis'
-                                : tryout.isAccessible
-                                    ? 'Akses Tersedia'
-                                    : 'Subscription Diperlukan'}
-                    </span>
-                </div>
-
-                <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl bg-gray-50 p-4">
-                        <Clock3
-                            size={18}
-                            className="text-gray-500"
-                        />
-
-                        <p className="mt-3 text-xs font-medium uppercase tracking-wide text-gray-400">
-                            Durasi
-                        </p>
-
-                        <p className="mt-1 text-sm font-semibold text-gray-900">
-                            {tryout.durationMinutes} menit
-                        </p>
-                    </div>
-
-                    <div className="rounded-xl bg-gray-50 p-4">
-                        <BookOpen
-                            size={18}
-                            className="text-gray-500"
-                        />
-
-                        <p className="mt-3 text-xs font-medium uppercase tracking-wide text-gray-400">
-                            Jumlah Soal
-                        </p>
-
-                        <p className="mt-1 text-sm font-semibold text-gray-900">
-                            {tryout.questionCount} soal
-                        </p>
-                    </div>
-
-                    <div className="rounded-xl bg-gray-50 p-4">
-                        <CheckCircle2
-                            size={18}
-                            className="text-gray-500"
-                        />
-
-                        <p className="mt-3 text-xs font-medium uppercase tracking-wide text-gray-400">
-                            Passing Score
-                        </p>
-
-                        <p className="mt-1 text-sm font-semibold text-gray-900">
-                            <TryoutPassingRules tryout={tryout} />
-                        </p>
-                    </div>
-                </div>
-            </section>
-
-            <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h2 className="text-lg font-bold text-gray-900">
-                        Jadwal Mulai Tryout
-                    </h2>
-                    <span className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700">
-                        {scheduleLabel}
-                    </span>
-                </div>
-
-                <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
-                    <div>
-                        <dt className="text-gray-500">Mulai tersedia</dt>
-                        <dd className="mt-1 font-medium text-gray-900">
-                            {formatScheduleDate(tryout.startAt, 'Tanpa batas awal')}
-                        </dd>
-                    </div>
-                    <div>
-                        <dt className="text-gray-500">Batas memulai ujian baru</dt>
-                        <dd className="mt-1 font-medium text-gray-900">
-                            {formatScheduleDate(tryout.endAt, 'Tanpa batas akhir')}
-                        </dd>
-                    </div>
-                </dl>
-
-                <p className="mt-4 text-sm leading-6 text-gray-500">
-                    Jadwal membatasi waktu memulai ujian baru. Ujian yang sudah
-                    dimulai tetap mendapat durasi penuh.
-                </p>
-
-                {hasActiveAttempt && (
-                    <p className="mt-3 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-blue-700">
-                        Kamu memiliki ujian yang masih berlangsung. Segera kembali ke ujian
-                        karena timer tetap berjalan meskipun kamu meninggalkan halaman ujian.
-                        {' '}Batas waktu ujian: {formatScheduleDate(tryout.activeAttempt.expiresAt, 'belum tersedia')}.
-                    </p>
-                )}
-            </section>
-
-            {/* Preparation */}
-            <section className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
-                <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600">
-                        <ShieldCheck size={19} />
-                    </div>
-
-                    <div>
-                        <h2 className="text-lg font-bold text-gray-900">
-                            Sebelum Memulai
-                        </h2>
-
-                        <p className="mt-1 text-sm text-gray-500">
-                            Pastikan kamu sudah siap sebelum memulai
-                            pengerjaan tryout.
-                        </p>
-                    </div>
-                </div>
-
-                <div className="mt-6 space-y-3 text-sm leading-6 text-gray-600">
-                    <p>
-                        1. Pastikan koneksi internet dalam kondisi
-                        stabil selama pengerjaan.
-                    </p>
-
-                    <p>
-                        2. Siapkan waktu sekitar{' '}
-                        <span className="font-semibold text-gray-900">
-                            {tryout.durationMinutes} menit
-                        </span>{' '}
-                        untuk menyelesaikan tryout.
-                    </p>
-
-                    <p>
-                        3. Tryout terdiri dari{' '}
-                        <span className="font-semibold text-gray-900">
-                            {tryout.questionCount} soal
-                        </span>
-                        .
-                    </p>
-
-                    <p>
-                        4. Waktu pengerjaan akan berjalan setelah
-                        tryout dimulai.
-                    </p>
-
-                    <p>
-                        5. Pastikan semua jawaban sudah diperiksa
-                        sebelum menyelesaikan tryout.
-                    </p>
-                </div>
-
-                <div className="mt-6 border-t border-gray-100 pt-5">
-                    {startTryoutMutation.isError && (
-                        <p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
-                            {startTryoutMutation.error?.response?.data?.message ||
-                                'Gagal memulai atau melanjutkan tryout. Silakan coba kembali.'}
-                        </p>
-                    )}
-                    {canStartOrResume ? (
-                        <button
-                            type="button"
-                            onClick={handleStartTryout}
-                            disabled={
-                                startTryoutMutation.isPending ||
-                                isFetching
-                            }
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            <Play size={17} />
-
-                            {startTryoutMutation.isPending
-                                ? (
-                                    hasActiveAttempt
-                                        ? 'Melanjutkan...'
-                                        : 'Memulai...'
-                                )
-                                : (
-                                    hasActiveAttempt
-                                        ? 'Lanjutkan Tryout'
-                                        : 'Mulai Tryout'
-                                )}
-                        </button>
-                    ) : !tryout.isAccessible ? (
-                        <div className="space-y-4">
-                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                                <div className="flex items-center gap-2 text-gray-700">
-                                    <Lock size={18} />
-
-                                    <p className="text-sm font-semibold">
-                                        Tryout Terkunci
-                                    </p>
-                                </div>
-
-                                <p className="mt-2 text-sm text-gray-500">
-                                    Kamu memerlukan subscription yang
-                                    memiliki akses ke paket tryout ini.
-                                </p>
-
-                                {tryout.allowedTiers?.length > 0 && (
-                                    <div className="mt-4">
-                                        <p className="text-xs font-medium text-gray-600">
-                                            Subscription yang memiliki akses langsung:
-                                        </p>
-
-                                        <div className="mt-2 flex flex-wrap gap-2">
-                                            {tryout.allowedTiers.map((tier) => (
-                                                <span
-                                                    key={tier.id}
-                                                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700"
-                                                >
-                                                    {tier.name}
-                                                </span>
-                                            ))}
-                                        </div>
-
-                                        <p className="mt-2 text-xs text-gray-500">
-                                            Subscription lain yang mewarisi
-                                            tier tersebut juga dapat memiliki akses.
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    navigate('/user/subscription')
-                                }
-                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-primary-700"
-                            >
-                                <Lock size={17} />
-                                Lihat Subscription
-                            </button>
-                        </div>
-                    ) : (
-                        <button
-                            type="button"
-                            disabled
-                            className="flex w-full cursor-not-allowed items-center justify-center rounded-xl bg-gray-100 px-4 py-3 text-sm font-semibold text-gray-400"
-                        >
-                            {scheduleLabel}
-                        </button>
-                    )}
-                </div>
-            </section>
+            <TryoutStartPanel
+                tryout={tryout}
+                hasActiveAttempt={hasActiveAttempt}
+                canStartOrResume={canStartOrResume}
+                scheduleLabel={scheduleLabel}
+                isPending={startTryoutMutation.isPending}
+                isFetching={isFetching}
+                errorMessage={startErrorMessage}
+                onStart={handleStartTryout}
+                onViewSubscription={() => navigate('/user/subscription')}
+            />
         </div>
     )
 }
