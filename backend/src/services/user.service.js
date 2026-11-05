@@ -1,6 +1,7 @@
 import {
   findUsers,
-  findUserById
+  findUserById,
+  findUserSubscriptionDistribution
 } from '../repositories/user.repository.js';
 
 import {
@@ -10,18 +11,31 @@ import {
 export const getUsers = async ({
   page,
   limit,
-  search
+  search,
+  tierId,
+  startDate,
+  endDate
 }) => {
-  // User Management monitors subscriptions for user accounts only.
-  const result = await findUsers({
-    page,
-    limit,
-    search,
-    role: 'user'
-  });
+  const [result, subscriptionDistribution] = await Promise.all([
+    findUsers({
+      page,
+      limit,
+      search,
+      role: 'user',
+      tierId,
+      startDate,
+      endDate
+    }),
+
+    findUserSubscriptionDistribution({
+      startDate,
+      endDate
+    })
+  ]);
 
   return {
     data: result.rows,
+
     meta: {
       page: result.page,
       limit: result.limit,
@@ -29,7 +43,9 @@ export const getUsers = async ({
       totalPages: Math.ceil(
         result.total / result.limit
       )
-    }
+    },
+
+    subscriptionDistribution
   };
 };
 
@@ -47,4 +63,13 @@ export const getUserById = async (
   }
 
   return user;
+};
+export const getUserSubscriptionDistribution = async ({
+  startDate,
+  endDate
+}) => {
+  return findUserSubscriptionDistribution({
+    startDate,
+    endDate
+  });
 };

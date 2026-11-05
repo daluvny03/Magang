@@ -3,11 +3,7 @@ import {
   getUserById
 } from '../services/user.service.js';
 
-export const getAll = async (
-  req,
-  res,
-  next
-) => {
+export const getAll = async (req, res, next) => {
   try {
     const result = await getUsers(
       req.validatedQuery
@@ -15,10 +11,11 @@ export const getAll = async (
 
     return res.status(200).json({
       success: true,
-      message:
-        'Users retrieved successfully',
+      message: 'Users retrieved successfully',
       data: result.data,
-      meta: result.meta
+      meta: result.meta,
+      subscriptionDistribution:
+        result.subscriptionDistribution
     });
   } catch (error) {
     next(error);
