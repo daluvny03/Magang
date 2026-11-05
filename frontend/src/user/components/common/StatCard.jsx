@@ -1,7 +1,7 @@
 import Surface from './Surface'
 
 const TONES = {
-  primary: 'bg-slate-100 text-slate-700',
+  neutral: 'bg-muted text-muted-foreground',
   info: 'bg-sky-50 text-sky-800',
   success: 'bg-emerald-50 text-emerald-800',
   warning: 'bg-amber-50 text-amber-800',
@@ -13,7 +13,7 @@ function StatCard({
   value,
   suffix,
   hint,
-  tone = 'primary',
+  tone = 'neutral',
   className = '',
 }) {
   return (
@@ -37,7 +37,7 @@ function StatCard({
         {Icon && (
           <span
             aria-hidden="true"
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${TONES[tone] ?? TONES.primary}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${TONES[tone] ?? TONES.neutral}`}
           >
             <Icon size={22} />
           </span>

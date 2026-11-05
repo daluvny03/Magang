@@ -66,11 +66,6 @@ function UserLayout() {
         Lewati ke konten utama
       </a>
 
-      <div
-        aria-hidden="true"
-        className="mesh-bg pointer-events-none fixed inset-x-0 top-0 -z-10 h-[420px]"
-      />
-
       <Sidebar
         collapsed={collapsed}
         mobileOpen={mobileOpen}

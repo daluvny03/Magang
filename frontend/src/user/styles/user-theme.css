@@ -27,7 +27,7 @@
   --color-input: #e3e8ee;
   --color-ring: #51a8b1;
 
-  --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04), 0 14px 34px -22px rgba(15, 23, 42, 0.18);
+  --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.05), 0 12px 28px -22px rgba(16, 24, 40, 0.3);
 
   --animate-soft-pulse: soft-pulse 2s ease-in-out infinite;
   @keyframes soft-pulse {
@@ -37,14 +37,14 @@
 }
 
 @utility soft-shadow {
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 14px 34px -22px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 12px 28px -22px rgba(16, 24, 40, 0.3);
 }
 
 @utility card-lift {
   transition: transform 200ms ease-out, box-shadow 200ms ease-out;
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 2px 6px rgba(16, 24, 40, 0.05), 0 22px 44px -26px rgba(15, 23, 42, 0.24);
+    box-shadow: 0 2px 6px rgba(16, 24, 40, 0.06), 0 18px 36px -24px rgba(16, 24, 40, 0.38);
   }
 }
 
@@ -58,10 +58,4 @@
 @utility no-scrollbar {
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
-}
-
-@utility mesh-bg {
-  background-image:
-    radial-gradient(44rem 22rem at 8% -8%, color-mix(in srgb, var(--color-primary) 16%, transparent), transparent 60%),
-    radial-gradient(36rem 20rem at 96% 4%, color-mix(in srgb, var(--color-accent) 14%, transparent), transparent 60%);
 }

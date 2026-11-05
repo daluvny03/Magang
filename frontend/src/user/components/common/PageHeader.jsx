@@ -5,7 +5,9 @@ function PageHeader({ eyebrow, title, subtitle, actions, className = '' }) {
     >
       <div className="min-w-0 space-y-1.5">
         {eyebrow && (
-          <p className="text-[13px] font-semibold text-primary-700">{eyebrow}</p>
+          <p className="text-[12px] font-bold uppercase tracking-wider text-muted-foreground">
+            {eyebrow}
+          </p>
         )}
 
         <h1 className="text-[26px] font-bold leading-tight text-foreground sm:text-[30px]">
