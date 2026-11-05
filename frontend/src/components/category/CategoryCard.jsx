@@ -86,7 +86,7 @@ function CategoryCard({ category, search, onAddChild, ...menuHandlers }) {
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-card transition hover:border-primary-200">
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
           <FolderTree size={20} />
         </div>
 

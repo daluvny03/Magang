@@ -44,7 +44,7 @@ function QuestionImportUpload({ file, error, onFileChange, onRemove }) {
       ) : (
         <div className="flex items-center justify-between rounded-xl border border-gray-200 p-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
               <Archive size={20} />
             </div>
             <div className="min-w-0">
