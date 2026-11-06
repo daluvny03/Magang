@@ -16,7 +16,7 @@ function CatSidebar({
 
     const infoTiles = [
         { label: 'Jumlah soal', value: totalQuestions, tone: 'text-foreground' },
-        { label: 'Terjawab', value: answeredCount, tone: 'text-primary-700' },
+        { label: 'Terjawab', value: answeredCount, tone: 'text-blue-700' },
         { label: 'Belum dijawab', value: unansweredCount, tone: 'text-muted-foreground' },
         { label: 'Ragu-ragu', value: doubtfulCount, tone: 'text-amber-700' },
     ]

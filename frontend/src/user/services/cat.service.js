@@ -66,3 +66,20 @@ export const finishAttempt = async ({
 
     return response.data
 }
+
+export const checkInternetPing = async ({ signal } = {}) => {
+    const startedAt = performance.now()
+
+    await fetch(
+        'https://connectivitycheck.gstatic.com/generate_204',
+        {
+            method: 'GET',
+            mode: 'no-cors',
+            cache: 'no-store',
+            credentials: 'omit',
+            signal,
+        }
+    )
+
+    return Math.round(performance.now() - startedAt)
+}

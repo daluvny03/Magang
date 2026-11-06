@@ -6,11 +6,14 @@ import {
     useParams,
 } from 'react-router-dom'
 import {
+    useCallback,
     useEffect,
     useMemo,
     useRef,
     useState,
 } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAuthStore } from '../../stores/authStore'
 import { useAttemptQuestions } from '../hooks/useAttemptQuestions'
 import { useSaveAttemptAnswer } from '../hooks/useSaveAttemptAnswer'
 import { useAttemptTimer } from '../hooks/useAttemptTimer'
@@ -24,11 +27,17 @@ import CatFooter from '../components/cat/CatFooter'
 import CatNavigatorSheet from '../components/cat/CatNavigatorSheet'
 import CatStatusScreen from '../components/cat/CatStatusScreen'
 import FinishConfirmModal from '../components/cat/FinishConfirmModal'
+import ExitConfirmModal from '../components/cat/ExitConfirmModal'
+import { useNetworkPing } from '../hooks/useNetworkPing'
 
 const URGENT_THRESHOLD_SECONDS = 300
 
 function CatExamPage() {
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
+    const userId = useAuthStore(
+        (state) => state.user?.id
+    )
     const finishAttemptMutation = useFinishAttempt()
     const autoFinishTriggeredRef = useRef(false)
     const { attemptId } = useParams()
@@ -38,11 +47,34 @@ function CatExamPage() {
     const [selectedAnswers, setSelectedAnswers] = useState({})
     const [doubtfulQuestions, setDoubtfulQuestions] = useState({})
     const [isFinishModalOpen, setIsFinishModalOpen] = useState(false)
+    const [isExitModalOpen, setIsExitModalOpen] = useState(false)
+    const [isExiting, setIsExiting] = useState(false)
     const [isNavigatorOpen, setIsNavigatorOpen] = useState(false)
     const saveAnswerMutation = useSaveAttemptAnswer()
     const saveProgressMutation = useSaveQuestionProgress()
     const saveProgress = saveProgressMutation.mutateAsync
     const finishAttempt = finishAttemptMutation.mutateAsync
+    const invalidatePostFinishQueries = useCallback(async () => {
+        if (!userId) return
+        await Promise.all([
+            queryClient.invalidateQueries({
+                queryKey: [
+                    'user',
+                    userId,
+                    'attempt-statistics',
+                ],
+                exact: true,
+            }),
+            queryClient.invalidateQueries({
+                queryKey: [
+                    'user',
+                    userId,
+                    'learning-recommendations',
+                ],
+                exact: true,
+            }),
+        ])
+    }, [queryClient, userId])
     const questionStartedAtRef = useRef(null)
     const doubtfulMutation = useUpdateDoubtful()
     const {
@@ -60,12 +92,16 @@ function CatExamPage() {
     } = useAttemptTimer(attempt?.expiresAt)
     const currentQuestion = questions[currentQuestionIndex]
     const currentQuestionId = currentQuestion?.id
+    const {
+        ping,
+        isChecking: isPingChecking,
+        isDisconnected,
+    } = useNetworkPing(Boolean(attempt && !isExpired))
 
     useEffect(() => {
         if (!currentQuestionId) {
             return
         }
-
         questionStartedAtRef.current = Date.now()
     }, [currentQuestionId])
 
@@ -79,7 +115,6 @@ function CatExamPage() {
         ) {
             return
         }
-
         hasRestoredQuestionRef.current = true
         const storedQuestionId =
             sessionStorage.getItem(
@@ -88,7 +123,6 @@ function CatExamPage() {
         if (!storedQuestionId) {
             return
         }
-
         const restoredIndex =
             questions.findIndex(
                 (question) =>
@@ -106,7 +140,6 @@ function CatExamPage() {
         questions,
         questionPositionStorageKey,
     ])
-
     useEffect(() => {
         if (
             !currentQuestionId ||
@@ -129,7 +162,6 @@ function CatExamPage() {
         if (!currentQuestionId) {
             return
         }
-
         const intervalId = setInterval(
             async () => {
                 if (
@@ -140,7 +172,6 @@ function CatExamPage() {
                 ) {
                     return
                 }
-
                 progressSavingRef.current = true
                 const now = Date.now()
                 const durationSeconds =
@@ -152,7 +183,6 @@ function CatExamPage() {
                     )
                 questionStartedAtRef.current =
                     now
-
                 try {
                     if (durationSeconds > 0) {
                         await saveProgress({
@@ -203,6 +233,7 @@ function CatExamPage() {
                     await finishAttempt({
                         attemptId,
                     })
+                    await invalidatePostFinishQueries()
                     sessionStorage.removeItem(
                         questionPositionStorageKey
                     )
@@ -227,6 +258,7 @@ function CatExamPage() {
         navigate,
         finishAttempt,
         questionPositionStorageKey,
+        invalidatePostFinishQueries,
     ])
     if (isLoading) {
         return <CatStatusScreen loading title="Memuat soal..." />
@@ -452,11 +484,17 @@ function CatExamPage() {
         return numbers
     }, [])
 
-    const handleExit = async () => {
+    const handleExit = () => {
+        setIsExitModalOpen(true)
+    }
+
+    const handleConfirmExit = async () => {
+        if (isExiting) return
+
+        setIsExiting(true)
         await saveCurrentQuestionProgress()
-        toast.info(
-            'Waktu tetap berjalan. Lanjutkan dari halaman Tryout.'
-        )
+        setIsExitModalOpen(false)
+        toast.warning('Waktu tetap berjalan. Lanjutkan dari halaman Tryout.')
         navigate('/user/tryouts')
     }
 
@@ -464,21 +502,29 @@ function CatExamPage() {
         if (finishAttemptMutation.isPending) {
             return
         }
-
         try {
             await saveCurrentQuestionProgress()
-            await finishAttempt({ attemptId })
-            sessionStorage.removeItem(questionPositionStorageKey)
+            await finishAttempt({
+                attemptId,
+            })
+            await invalidatePostFinishQueries()
+            sessionStorage.removeItem(
+                questionPositionStorageKey
+            )
             setIsFinishModalOpen(false)
-            navigate(`/user/results/${attemptId}`, { replace: true })
+            navigate(`/user/results/${attemptId}`, {
+                replace: true,
+            })
         } catch (error) {
-            logRequestError('Failed to finish attempt:', error)
+            logRequestError(
+                'Failed to finish attempt:',
+                error
+            )
             toast.error(
                 'Gagal menyelesaikan tryout. Periksa koneksi lalu coba lagi.'
             )
         }
     }
-
 
     const handleNavigatorSelect = async (questionIndex) => {
         await handleQuestionSelect(questionIndex)
@@ -520,6 +566,9 @@ function CatExamPage() {
                 isFinishing={finishAttemptMutation.isPending}
                 onExit={handleExit}
                 onFinish={() => setIsFinishModalOpen(true)}
+                ping={ping}
+                isPingChecking={isPingChecking}
+                isDisconnected={isDisconnected}
             />
 
             <FinishConfirmModal
@@ -531,6 +580,15 @@ function CatExamPage() {
                 isSubmitting={finishAttemptMutation.isPending}
                 onClose={() => setIsFinishModalOpen(false)}
                 onConfirm={handleFinishAttempt}
+                ping={ping}
+                isPingChecking={isPingChecking}
+                isDisconnected={isDisconnected}
+            />
+            <ExitConfirmModal
+                isOpen={isExitModalOpen}
+                isSaving={isExiting}
+                onClose={() => setIsExitModalOpen(false)}
+                onConfirm={handleConfirmExit}
             />
             <main className="mx-auto w-full max-w-[1600px] px-3 pb-28 pt-6 sm:px-6 lg:px-8 lg:pb-10">
                 {isUrgent && (

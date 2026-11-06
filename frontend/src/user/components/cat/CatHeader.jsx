@@ -1,4 +1,6 @@
+
 import { ArrowLeft, Timer } from 'lucide-react'
+import NetworkPingIndicator from './NetworkPingIndicator'
 
 function CatHeader({
     title = 'Tryout',
@@ -8,6 +10,9 @@ function CatHeader({
     isFinishing,
     onExit,
     onFinish,
+    ping,
+    isPingChecking,
+    isDisconnected,
 }) {
     return (
         <header className="sticky top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
@@ -34,17 +39,26 @@ function CatHeader({
                     )}
                 </div>
 
-                <div
-                    role="timer"
-                    aria-label="Sisa waktu pengerjaan"
-                    className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-[14px] font-bold tabular-nums transition-colors sm:gap-2 sm:px-3 sm:text-[15px] ${
-                        isUrgent
-                            ? 'bg-destructive/10 text-destructive motion-safe:animate-soft-pulse'
-                            : 'bg-muted text-foreground'
-                    }`}
-                >
-                    <Timer size={16} aria-hidden="true" />
-                    {formattedTime}
+                {/* Timer dan Ping */}
+                <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                    <div
+                        role="timer"
+                        aria-label="Sisa waktu pengerjaan"
+                        className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-2 text-[14px] font-bold tabular-nums transition-colors sm:gap-2 sm:px-3 sm:text-[15px] ${
+                            isUrgent
+                                ? 'bg-destructive/10 text-destructive motion-safe:animate-soft-pulse'
+                                : 'bg-muted text-foreground'
+                        }`}
+                    >
+                        <Timer size={16} aria-hidden="true" />
+                        {formattedTime}
+                    </div>
+
+                    <NetworkPingIndicator
+                        ping={ping}
+                        isChecking={isPingChecking}
+                        isDisconnected={isDisconnected}
+                    />
                 </div>
 
                 <button

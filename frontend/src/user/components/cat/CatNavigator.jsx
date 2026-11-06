@@ -1,15 +1,14 @@
 const STATUS_CLASS = {
-    active: 'border-primary-700 bg-primary-700 text-white shadow-sm',
-    doubtful: 'border-amber-300 bg-amber-50 text-amber-800',
-    answered: 'border-primary/40 bg-primary-50 text-primary-700',
-    empty: 'border-border bg-card text-muted-foreground hover:border-primary hover:bg-primary-50',
+    doubtful: 'bg-amber-400 text-amber-950',
+    answered: 'bg-emerald-600 text-white shadow-sm',
+    empty: 'bg-slate-100 text-slate-600 hover:bg-slate-200',
 }
 
 const LEGEND = [
-    { label: 'Sedang dibuka', swatch: 'border-primary-700 bg-primary-700' },
-    { label: 'Sudah dijawab', swatch: 'border-primary/40 bg-primary-100' },
-    { label: 'Ragu-ragu', swatch: 'border-amber-300 bg-amber-100' },
-    { label: 'Belum dijawab', swatch: 'border-border bg-card' },
+    { label: 'Sedang dibuka', swatch: 'border-2 border-slate-700 bg-card' },
+    { label: 'Sudah dijawab', swatch: 'bg-emerald-600' },
+    { label: 'Ragu-ragu', swatch: 'bg-amber-400' },
+    { label: 'Belum dijawab', swatch: 'bg-slate-100' },
 ]
 
 function CatNavigator({
@@ -39,7 +38,9 @@ function CatNavigator({
                         let statusKey = 'empty'
                         if (isAnswered) statusKey = 'answered'
                         if (isDoubtful) statusKey = 'doubtful'
-                        if (isActive) statusKey = 'active'
+                        const activeClass = isActive
+                            ? 'border-2 border-slate-700 shadow-sm'
+                            : ''
 
                         const description = [
                             `Soal ${index + 1}`,
@@ -57,7 +58,7 @@ function CatNavigator({
                                 onClick={() => onQuestionSelect(index)}
                                 aria-label={description}
                                 aria-current={isActive ? 'true' : undefined}
-                                className={`focus-ring h-12 rounded-xl border text-[12px] font-semibold transition-colors disabled:cursor-wait disabled:opacity-60 ${STATUS_CLASS[statusKey]}`}
+                                className={`focus-ring h-12 rounded-xl text-[12px] font-semibold transition-all disabled:cursor-wait disabled:opacity-60 ${STATUS_CLASS[statusKey]} ${activeClass}`}
                             >
                                 {index + 1}
                             </button>
@@ -74,7 +75,7 @@ function CatNavigator({
                     >
                         <span
                             aria-hidden="true"
-                            className={`h-3 w-3 shrink-0 rounded border ${item.swatch}`}
+                            className={`h-3 w-3 shrink-0 rounded ${item.swatch}`}
                         />
                         {item.label}
                     </li>
