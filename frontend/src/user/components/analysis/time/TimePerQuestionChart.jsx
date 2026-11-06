@@ -93,7 +93,7 @@ function TimePerQuestionChart({ rows, averageSeconds }) {
               width={56}
             />
 
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(81,168,177,0.08)' }} />
+            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(37,99,235,0.08)' }} />
 
             {averageSeconds != null && (
               <ReferenceLine

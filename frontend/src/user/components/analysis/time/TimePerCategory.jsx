@@ -6,6 +6,11 @@ import { CATEGORY_ORDER, CATEGORY_STYLES } from '@/user/constants/categoryStyles
 import { formatDuration, formatDurationShort } from '@/utils/format'
 
 const FALLBACK_COLOR = '#9aa5b1'
+const DATA_COLORS = {
+  twk: '#2563eb',
+  tiu: '#7c3aed',
+  tkp: '#f97316',
+}
 
 function TimePerCategory({ categories = [] }) {
   const sorted = [...categories].sort(
@@ -28,7 +33,7 @@ function TimePerCategory({ categories = [] }) {
       seconds,
       average: item.hasSufficientData ? Number(item.averageTimeSeconds) : null,
       share: totalSeconds > 0 ? Math.round((seconds / totalSeconds) * 100) : 0,
-      color: style?.color ?? FALLBACK_COLOR,
+      color: DATA_COLORS[item.slug] ?? FALLBACK_COLOR,
     }
   })
 

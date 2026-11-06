@@ -7,7 +7,7 @@ import { buttonClass } from '@/user/components/common/buttonStyles'
 import { ChartSkeleton, StatSkeleton } from '@/user/components/common/Skeletons'
 
 import { useAttemptAnalysis } from '../hooks/useAttemptAnalysis'
-import TimeAnalysisSection from '../components/analysis/TimeAnalysisSection'
+import TimeAnalysisSection from '../components/analysis/time/TimeAnalysisSection'
 import { isSubscriptionRequiredError } from '../utils/subscription-access'
 
 const isValidId = (value) => /^[1-9]\d*$/.test(String(value ?? ''))
