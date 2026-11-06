@@ -1,7 +1,5 @@
 import { AlertCircle, RefreshCw } from 'lucide-react'
-
-import { useAttemptAnalysisSummary } from '../../hooks/useAttemptAnalysisSummary'
-
+import { useAttemptAnalysisSummary } from '@/user/hooks/useAttemptAnalysisSummary'
 import AnalysisSummary from './AnalysisSummary'
 import CategoryPerformance from './CategoryPerformance'
 
@@ -36,7 +34,6 @@ function AnalysisError({ error, onRetry }) {
       : status === 409
         ? 'Analisis belum tersedia atau data hasil ujian tidak konsisten.'
         : 'Gagal memuat ringkasan analisis tryout.'
-
   return (
     <div
       role="alert"
@@ -107,7 +104,6 @@ function ResultAnalysisSection({ attemptId }) {
   return (
     <div className="space-y-6">
       <AnalysisSummary summary={data.summary} />
-
       <CategoryPerformance categories={data.categories ?? []} />
     </div>
   )

@@ -5,7 +5,7 @@ import AdvancedAnalysisCard from '../components/result/AdvancedAnalysisCard'
 import CategoryBreakdown from '../components/result/CategoryBreakdown'
 import { useAttemptAnalysisSummary } from '../hooks/useAttemptAnalysisSummary'
 import ResultInformationCard from '../components/result/ResultInformationCard'
-import ResultAnalysisSection from '../components/analysis/ResultAnalysisSection'
+import ResultAnalysisSection from '../components/analysis/summary/ResultAnalysisSection'
 import { useAttemptResult } from '../hooks/useAttemptResult'
 
 function ResultSkeleton() {

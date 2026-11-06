@@ -4,37 +4,13 @@ import {
     CircleHelp,
     ClipboardCheck,
     Clock3,
-    FileQuestion,
     RotateCcw,
     Trophy,
     XCircle,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { formatDuration } from '@/utils/format'
-
-const PASSING_STATUS = {
-    passed: {
-        label: 'Memenuhi Passing Grade',
-        description:
-            'Nilai kamu telah memenuhi ketentuan kelulusan tryout.',
-        className: 'bg-emerald-50 text-emerald-800',
-        icon: CheckCircle2,
-    },
-    failed: {
-        label: 'Belum Memenuhi Passing Grade',
-        description:
-            'Nilai kamu belum memenuhi ketentuan kelulusan tryout.',
-        className: 'bg-red-50 text-red-800',
-        icon: XCircle,
-    },
-    not_evaluated: {
-        label: 'Passing Grade Tidak Diterapkan',
-        description:
-            'Paket tryout ini tidak menggunakan ketentuan passing grade.',
-        className: 'bg-muted text-muted-foreground',
-        icon: FileQuestion,
-    },
-}
+import { getPassingStatus } from '@/user/constants/passingStatus'
 
 const formatDate = (value) => {
     if (!value) return '-'
@@ -76,15 +52,13 @@ function StatTile({ icon: Icon, label, value, iconClass }) {
 }
 
 function PassingGradeStatus({ status }) {
-    const config =
-        PASSING_STATUS[status] ?? PASSING_STATUS.not_evaluated
-
-    const Icon = config.icon
+    const config = getPassingStatus(status)
+    const Icon = config.Icon
 
     return (
         <div>
             <span
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-semibold ${config.className}`}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[14px] font-semibold ${config.badge}`}
             >
                 <Icon size={18} aria-hidden="true" />
                 {config.label}

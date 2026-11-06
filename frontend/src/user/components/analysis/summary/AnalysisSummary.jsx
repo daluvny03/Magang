@@ -14,7 +14,7 @@ function SummaryMetric({ icon: Icon, label, value, description, className = '' }
   return (
     <div className={`rounded-2xl border border-border bg-muted/50 p-4 sm:p-5 ${className}`}>
       <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
           <Icon size={20} aria-hidden="true" />
         </span>
 
