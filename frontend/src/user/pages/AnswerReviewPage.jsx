@@ -1,40 +1,60 @@
+import { Navigate, useParams } from 'react-router-dom'
+import { AlertCircle, RefreshCw, SearchX } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
-import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, AlertCircle, Loader2, RefreshCw } from 'lucide-react'
+import EmptyState from '@/user/components/common/EmptyState'
+import { Skeleton } from '@/user/components/common/Skeletons'
+import { buttonClass } from '@/user/components/common/buttonStyles'
 
 import { useAttemptAnalysis } from '../hooks/useAttemptAnalysis'
-import QuestionAnalysisList from '../components/analysis/QuestionAnalysisList'
-import { Navigate } from 'react-router-dom'
-import {
-    isSubscriptionRequiredError,
-} from '../utils/subscription-access'
+import QuestionAnalysisList from '../components/analysis/review/QuestionAnalysisList'
+import ReviewHeader from '../components/analysis/review/ReviewHeader'
+import { isSubscriptionRequiredError } from '../utils/subscription-access'
 
-const isValidId = (value) =>
-    /^[1-9]\d*$/.test(String(value ?? ''))
+const isValidId = (value) => /^[1-9]\d*$/.test(String(value ?? ''))
 
-function AnalysisMessage({ title, description }) {
+const ERROR_DESCRIPTIONS = {
+    404: 'Analisis jawaban tidak ditemukan atau kamu tidak memiliki akses ke pembahasan tryout ini.',
+    409: 'Analisis jawaban dan pembahasan soal belum dapat ditampilkan untuk tryout ini.',
+}
+
+const DEFAULT_ERROR_DESCRIPTION =
+    'Terjadi kesalahan saat memuat analisis jawaban dan pembahasan soal.'
+
+const NON_RETRYABLE_STATUSES = [401, 403, 404, 409, 422]
+
+function Screen({ children }) {
     return (
-        <div className="mx-auto w-full max-w-3xl px-4 py-12 text-center">
-            <AlertCircle
-                size={32}
-                className="mx-auto mb-4 text-slate-400"
-                aria-hidden="true"
-            />
+        <div className="mx-auto w-full max-w-xl px-4 py-16 font-user">
+            {children}
+        </div>
+    )
+}
 
-            <h1 className="text-xl font-bold text-slate-900">
-                {title}
-            </h1>
+function BackToHistory() {
+    return (
+        <Link to="/user/history" className={buttonClass.outline}>
+            Kembali ke Riwayat Tryout
+        </Link>
+    )
+}
 
-            <p className="mt-2 text-sm text-slate-500">
-                {description}
-            </p>
+function ReviewSkeleton() {
+    return (
+        <div
+            role="status"
+            className="mx-auto w-full max-w-[1600px] space-y-5 px-3 py-6 font-user sm:px-6 lg:px-8"
+        >
+            <Skeleton className="h-14 w-full" />
 
-            <Link
-                to="/user/history"
-                className="mt-5 inline-flex text-sm font-semibold text-blue-600 hover:text-blue-700"
-            >
-                Kembali ke Riwayat Tryout
-            </Link>
+            <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+                <Skeleton className="h-72 rounded-2xl lg:order-last lg:h-[34rem]" />
+                <Skeleton className="h-[34rem] rounded-2xl" />
+            </div>
+
+            <span className="sr-only">
+                Memuat analisis jawaban dan pembahasan soal...
+            </span>
         </div>
     )
 }
@@ -49,89 +69,70 @@ function AnswerReviewPageContent({ attemptId }) {
     } = useAttemptAnalysis(attemptId)
 
     if (isPending && !isError) {
-        return (
-            <div
-                role="status"
-                className="flex min-h-[50vh] items-center justify-center gap-3"
-            >
-                <Loader2
-                    size={28}
-                    className="animate-spin text-blue-600"
-                    aria-hidden="true"
-                />
-
-                <span className="text-sm text-slate-500">
-                    Memuat analisis jawaban dan pembahasan soal...
-                </span>
-            </div>
-        )
+        return <ReviewSkeleton />
     }
 
     if (isError && isSubscriptionRequiredError(error)) {
-        return (
-            <Navigate
-                to="/user/forbidden"
-                replace
-            />
-        )
+        return <Navigate to="/user/forbidden" replace />
     }
 
     if (isError) {
         const status = error?.response?.status
-
-        const description =
-            status === 404
-                ? 'Analisis jawaban tidak ditemukan atau kamu tidak memiliki akses ke pembahasan tryout ini.'
-                : status === 409
-                    ? 'Analisis jawaban dan pembahasan soal belum dapat ditampilkan untuk tryout ini.'
-                    : 'Terjadi kesalahan saat memuat analisis jawaban dan pembahasan soal.'
+        const canRetry = !NON_RETRYABLE_STATUSES.includes(status)
 
         return (
-            <div className="space-y-4">
-                <AnalysisMessage
+            <Screen>
+                <EmptyState
+                    icon={AlertCircle}
                     title="Analisis Jawaban Tidak Tersedia"
-                    description={description}
-                />
+                    description={
+                        ERROR_DESCRIPTIONS[status] ?? DEFAULT_ERROR_DESCRIPTION
+                    }
+                    action={
+                        <>
+                            {canRetry && (
+                                <button
+                                    type="button"
+                                    onClick={() => refetch()}
+                                    className={buttonClass.solid}
+                                >
+                                    <RefreshCw size={16} aria-hidden="true" />
+                                    Coba Lagi
+                                </button>
+                            )}
 
-                {![401, 403, 404, 409, 422].includes(status) && (
-                    <div className="flex justify-center">
-                        <button
-                            type="button"
-                            onClick={() => refetch()}
-                            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                        >
-                            <RefreshCw size={16} />
-                            Coba Lagi
-                        </button>
-                    </div>
-                )}
-            </div>
+                            <BackToHistory />
+                        </>
+                    }
+                />
+            </Screen>
         )
     }
 
     if (!data?.attempt) {
         return (
-            <AnalysisMessage
-                title="Analisis Jawaban Tidak Tersedia"
-                description="Jawaban dan pembahasan soal untuk tryout ini belum dapat ditampilkan."
-            />
+            <Screen>
+                <EmptyState
+                    icon={SearchX}
+                    title="Analisis Jawaban Tidak Tersedia"
+                    description="Jawaban dan pembahasan soal untuk tryout ini belum dapat ditampilkan."
+                    action={<BackToHistory />}
+                />
+            </Screen>
         )
     }
 
+    const resultUrl = `/user/results/${attemptId}`
+
     return (
-        <div className="flex min-h-screen flex-col bg-gray-50">
-            <header className="sticky top-0 z-30 border-b border-gray-200 bg-white">
-                <div className="mx-auto flex min-h-20 max-w-[1600px] items-center justify-between gap-4 px-4 py-3 lg:px-6">
-                    <div className="min-w-0">
-                        <p className="text-xs font-medium uppercase tracking-wide text-blue-600">Pembahasan CAT CPNS</p>
-                        <h1 className="mt-1 text-base font-bold text-gray-900 lg:text-lg">{data.attempt.tryoutName}</h1>
-                    </div>
-                    <Link to={`/user/results/${attemptId}`} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700">
-                        <ArrowLeft size={16} aria-hidden="true" /> Hasil Tryout
-                    </Link>
-                </div>
-            </header>
-            <QuestionAnalysisList key={attemptId} questions={data.questions ?? []} resultUrl={`/user/results/${attemptId}`} />
+        <div className="flex min-h-screen flex-col bg-background font-user text-foreground">
+            <ReviewHeader title={data.attempt.tryoutName} resultUrl={resultUrl} />
+
+            <QuestionAnalysisList
+                key={attemptId}
+                questions={data.questions ?? []}
+                resultUrl={resultUrl}
+            />
         </div>
     )
 }
@@ -141,10 +142,14 @@ function AnswerReviewPage() {
 
     if (!isValidId(attemptId)) {
         return (
-            <AnalysisMessage
-                title="ID Tryout Tidak Valid"
-                description="Alamat halaman analisis jawaban dan pembahasan yang kamu akses tidak valid."
-            />
+            <Screen>
+                <EmptyState
+                    icon={SearchX}
+                    title="ID Tryout Tidak Valid"
+                    description="Alamat halaman analisis jawaban dan pembahasan yang kamu akses tidak valid."
+                    action={<BackToHistory />}
+                />
+            </Screen>
         )
     }
 
